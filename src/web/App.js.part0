@@ -1,0 +1,158 @@
+Created At: 2026-08-09T11:25:09Z
+Completed At: 2026-08-09T11:25:09Z
+File Path: `file:///c:/APPs/Ear%20Training/src/web/App.js`
+Total Lines: 1261
+Total Bytes: 45970
+Showing lines 1 to 150
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: /**
+2:  * @file App.js
+3:  * @description Main application controller integrating AudioEngine, Visualizer, and TrainingManager.
+4:  * Manages CSS Grid workspace layout, onboarding overlay, mode switching, draggable Canvas node handle in Pro mode, and Fila 3 integrated pedagogical results.
+5:  */
+6: 
+7: import { AudioEngine } from './AudioEngine.js?v=18';
+8: import { Visualizer } from './Visualizer.js?v=18';
+9: import { TrainingManager } from './TrainingManager.js?v=18';
+10: import { checkFilterFalseFriends, analyzeProPractices } from './ScoringEngine.js?v=18';
+11: 
+12: export class App {
+13:   constructor() {
+14:     this.audio = new AudioEngine();
+15:     this.trainer = new TrainingManager();
+16:     this.visualizer = null;
+17: 
+18:     // Track state for user interaction validation
+19:     this.hasListenedA = false;
+20:     this.hasListenedB = false;
+21:     this.hasInteracted = false;
+22:     this.activeAuditionIndex = -1;
+23: 
+24:     // Target Swap Lifelines
+25:     this.targetSwapsRemaining = 3;
+26: 
+27:     // Local track catalog for built-in audio selection
+28:     this.trackCatalog = [
+29:       { id: 'pink-noise', name: 'Pink Noise (Sintetizado)', path: null },
+30:       { id: 'white-noise', name: 'White Noise (Sintetizado)', path: null },
+31:       { id: 'sine-sweep', name: 'Sine Sweep (20Hz - 20kHz)', path: null },
+32:       { id: 'acoustic-guitar', name: 'Acoustic Guitar Strum', path: './Audio Tracks/Acoustic Guitar Strum.mp3' },
+33:       { id: 'electric-bass', name: 'Electric Bass Groove', path: './Audio Tracks/Electric Bass Groove.mp3' },
+34:       { id: 'full-mix-rock', name: 'Full Mix Rock Track', path: './Audio Tracks/Full Mix Rock Track.mp3' },
+35:       { id: 'vocal-stem', name: 'Vocal Stem Lead', path: './Audio Tracks/Vocal Stem Lead.mp3' },
+36:       { id: 'pop-drums-loop', name: 'Pop Drums Loop', path: './Audio Tracks/Pop Drums Loop.mp3' }
+37:     ];
+38:   }
+39: 
+40:   /**
+41:    * Initializes the application ecosystem.
+42:    */
+43:   async init() {
+44:     const canvas = document.getElementById('visualizerCanvas');
+45:     if (canvas) {
+46:       this.visualizer = new Visualizer(canvas, this.audio);
+47:     }
+48: 
+49:     this.bindOnboardingEvents();
+50:     this.bindEvents();
+51:     this.populateSourceDropdown();
+52: 
+53:     // Visualizer Node Change Handler (Normal & Pro Mode dragging)
+54:     if (this.visualizer) {
+55:       this.visualizer.onNodeChange = (nodesArray) => {
+56:         const activeIndex = this.visualizer.activeNodeIndex;
+57:         const activeNode = nodesArray[activeIndex];
+58: 
+59:         this.updateManualInputs(activeNode.frequencyHz, activeNode.gainDb, activeNode.qFactor);
+60:         this.audio.setUserEQ(nodesArray);
+61:         this.hasInteracted = true;
+62:         this.updateValidationState();
+63:       };
+64: 
+65:       this.visualizer.onBandSelected = (index) => {
+66:         this.setActiveBand(index);
+67:       };
+68:     }
+69: 
+70:     // Audio Engine State Change Handler
+71:     this.audio.onStateChange = (state) => {
+72:       if (state.isPlaying !== undefined) {
+73:         this.updatePlayButton();
+74:       }
+75:     };
+76: 
+77:     // Start with onboarding welcome screen
+78:     this.setAppState('WELCOME');
+79:   }
+80: 
+81:   /**
+82:    * Controls onboarding overlay workflow visibility.
+83:    * @param {'WELCOME'|'MODULE_SELECT'|'DIFFICULTY_SELECT'|'PLAYING'} newState 
+84:    */
+85:   setAppState(newState) {
+86:     const overlay = document.getElementById('onboardingOverlay');
+87:     const screenWelcome = document.getElementById('screenWelcome');
+88:     const screenModuleSelect = document.getElementById('screenModuleSelect');
+89:     const screenDifficultySelect = document.getElementById('screenDifficultySelect');
+90: 
+91:     [screenWelcome, screenModuleSelect, screenDifficultySelect].forEach(s => {
+92:       if (s) {
+93:         s.classList.remove('active-step');
+94:         s.classList.add('hidden');
+95:       }
+96:     });
+97: 
+98:     if (newState === 'WELCOME') {
+99:       if (overlay) overlay.classList.remove('hidden-overlay');
+100:       if (screenWelcome) {
+101:         screenWelcome.classList.remove('hidden');
+102:         setTimeout(() => screenWelcome.classList.add('active-step'), 20);
+103:       }
+104:     } else if (newState === 'MODULE_SELECT') {
+105:       if (overlay) overlay.classList.remove('hidden-overlay');
+106:       if (screenModuleSelect) {
+107:         screenModuleSelect.classList.remove('hidden');
+108:         setTimeout(() => screenModuleSelect.classList.add('active-step'), 20);
+109:       }
+110:     } else if (newState === 'DIFFICULTY_SELECT') {
+111:       if (overlay) overlay.classList.remove('hidden-overlay');
+112:       if (screenDifficultySelect) {
+113:         screenDifficultySelect.classList.remove('hidden');
+114:         setTimeout(() => screenDifficultySelect.classList.add('active-step'), 20);
+115:       }
+116:     } else if (newState === 'PLAYING') {
+117:       if (overlay) overlay.classList.add('hidden-overlay');
+118:     }
+119:   }
+120: 
+121:   setActiveBand(index) {
+122:     if (!this.visualizer || !this.visualizer.interactiveNodes) return;
+123:     
+124:     this.visualizer.activeNodeIndex = index;
+125:     
+126:     // Update active class on DOM tabs
+127:     document.querySelectorAll('.btn-band').forEach(btn => {
+128:         if (parseInt(btn.getAttribute('data-band')) === index) {
+129:             btn.classList.add('active');
+130:         } else {
+131:             btn.classList.remove('active');
+132:         }
+133:     });
+134:     
+135:     // Update DOM inputs to match this node
+136:     const node = this.visualizer.interactiveNodes[index];
+137:     if (node) {
+138:         this.updateManualInputs(node.frequencyHz, node.gainDb, node.qFactor);
+139:         const typeSelect = document.getElementById('typeSelect');
+140:         if (typeSelect) typeSelect.value = node.type || 'peaking';
+141:     }
+142:   }
+143: 
+144:   bindOnboardingEvents() {
+145:     const btnStartWelcome = document.getElementById('btnStartWelcome');
+146:     if (btnStartWelcome) {
+147:       btnStartWelcome.addEventListener('click', () => {
+148:         this.setAppState('MODULE_SELECT');
+149:       });
+150:     }
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

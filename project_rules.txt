@@ -1,0 +1,29 @@
+# REGLAS ARQUITECTÓNICAS Y DE NEGOCIO (EAR TRAINING APP)
+**IMPORTANTE PARA LA IA:** Lee estrictamente este documento antes de proponer CUALQUIER cambio de código, refactorización o adición de UI. Nunca asumas, nunca inventes.
+
+## 1. Identidad del Proyecto
+*   **Propósito:** Simulador de ecualización y entrenamiento auditivo avanzado para alumnos de formación profesional de la familia de imagen y sonido.
+*   **Rigor:** El código debe reflejar estándares de ingeniería acústica reales. No se admiten atajos psicoacústicos ni simplificaciones DSP que comprometan la fase o la respuesta frecuencial real.
+
+## 2. Base de Datos y UI (El Principio de la Verdad Única)
+*   **PROHIBIDO INVENTAR DATOS:** La interfaz gráfica (menús desplegables, listas de pistas) debe construirse ÚNICA Y EXCLUSIVAMENTE iterando sobre la constante `AUDIO_SOURCES`. 
+*   **Cero Alucinaciones:** Bajo ninguna circunstancia puedes añadir pistas de relleno (ej. "Aires", "Pistas de Jimmy") ni usar nombres genéricos. 
+*   **UI Reactiva (Dumb UI):** La UI es esclava del estado global. Los controles del DOM nunca modifican el audio directamente; despachan cambios al store de la Máquina de Estados.
+
+## 3. Motor DSP y Gestión de Memoria (AudioEngine)
+*   **Ruteo Determinista:** Todo cambio de nivel o modo requiere invocar `teardownGraph()` (para hacer `.disconnect()` de los nodos activos) y evitar fugas de memoria o ruteos paralelos indeseados.
+*   **Archivos de Audio vs. Sintéticos:** 
+    *   El motor debe distinguir por la bandera `isSynthetic`. 
+    *   Si es `isSynthetic: false`, DEBE usar `fetch()` apuntando a la ruta local `assets/audio/[filename]` (archivos `.ogg`). 
+    *   **NUNCA** utilices generadores de ruido (Pink/White) como fallback automático si falla un archivo OGG. Si un OGG falla, lanza un error de consola; no enmascares el fallo con ruido rosa.
+*   **Memoria Estricta:** Implementar Lazy Loading. Destruir explícitamente el `AudioBuffer` anterior antes de decodificar uno nuevo para evitar saturar la RAM del navegador.
+
+## 4. Renderizado del Espectro (Canvas Visualizer)
+El cálculo matemático del renderizado visual (eje Y en decibelios) tiene reglas estrictas:
+*   Solo el Ruido Rosa (`pink_noise`) recibe compensación de pendiente (Tilt de +3dB/octava).
+*   Solo el Ruido Blanco (`white_noise`) recibe un offset positivo de +45dB para calibración visual.
+*   Los archivos OGG acústicos (`isSynthetic: false`) se renderizan de forma plana y directa, SIN tilt logarítmico y SIN offset extra.
+
+## 5. Gamificación (Modo Boss y Progresión)
+*   **Máquina de Estados Finita:** Control estricto del estado del alumno. Niveles normales del 1 al 4, `STAGE 5` siempre es un Boss Fight (dos bandas simultáneas).
+*   **Penalización Topológica:** El `ScoringEngine` debe castigar severamente (restando hasta el 70% de los puntos) si el alumno confunde topologías acústicas incompatibles (ej. usar un Low Shelf cuando el objetivo era un High Pass infinito).

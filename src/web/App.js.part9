@@ -1,0 +1,158 @@
+Created At: 2026-08-09T21:59:37Z
+Completed At: 2026-08-09T21:59:37Z
+File Path: `file:///c:/APPs/Ear%20Training/src/web/App.js`
+Total Lines: 1379
+Total Bytes: 49525
+Showing lines 1 to 150
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: /**
+2:  * @file App.js
+3:  * @description Main application controller integrating AudioEngine, Visualizer, GameLoopManager (FSM),
+4:  * and AudioResourceManager. Implements fully reactive (data-driven) UI reflection of global state,
+5:  * dynamic <optgroup> track selector, real-time loading spinner, and multi-band pedagogical results.
+6:  */
+7: 
+8: import { AudioEngine } from './AudioEngine.js?v=18';
+9: import { Visualizer } from './Visualizer.js?v=20';
+10: import { GameLoopManager, GAME_STATES } from './GameLoopManager.js?v=18';
+11: import { AUDIO_SOURCES, MULTITRACK_SESSIONS } from './AudioResourceManager.js?v=21';
+12: import { TrainingManager } from './TrainingManager.js?v=21';
+13: import { ScoringEngine, checkFilterFalseFriends, analyzeProPractices } from './ScoringEngine.js?v=21';
+14: 
+15: export class App {
+16:   constructor() {
+17:     this.audio = new AudioEngine();
+18:     this.gameLoop = new GameLoopManager();
+19:     this.trainer = new TrainingManager();
+20:     this.visualizer = null;
+21: 
+22:     // Validation Flags
+23:     this.hasListenedA = false;
+24:     this.hasListenedB = false;
+25:     this.hasInteracted = false;
+26:     this.activeAuditionIndex = -1;
+27: 
+28:     // Target Swap Lifelines
+29:     this.targetSwapsRemaining = 3;
+30: 
+31:     // Audio Resource Manager Listener Setup (Phase 1)
+32:     if (this.audio.resourceManager) {
+33:       this.audio.resourceManager.on('onLoadStart', () => this.showAudioSpinner(true));
+34:       this.audio.resourceManager.on('onLoadComplete', () => this.showAudioSpinner(false));
+35:       this.audio.resourceManager.on('onLoadError', () => this.showAudioSpinner(false));
+36:     }
+37:   }
+38: 
+39:   /**
+40:    * Initializes the application ecosystem.
+41:    */
+42:   async init() {
+43:     const canvas = document.getElementById('visualizerCanvas');
+44:     if (canvas) {
+45:       this.visualizer = new Visualizer(canvas, this.audio);
+46:     }
+47: 
+48:     this.bindOnboardingEvents();
+49:     this.bindEvents();
+50:     this.populateSourceDropdown();
+51: 
+52:     // Subscribe to GameLoopManager FSM & Store changes (Phase 2 & 4)
+53:     this.gameLoop.subscribe((state, store) => {
+54:       this.renderHUD(store);
+55:       this.onFSMStateChange(state, store);
+56:     });
+57: 
+58:     // Visualizer Node Change Handler (Normal & Pro Mode dragging)
+59:     if (this.visualizer) {
+60:       this.visualizer.onNodeChange = (nodesArray) => {
+61:         const activeIndex = this.visualizer.activeNodeIndex || 0;
+62:         const activeNode = nodesArray[activeIndex];
+63: 
+64:         if (activeNode) {
+65:           this.updateManualInputs(activeNode.frequencyHz, activeNode.gainDb, activeNode.qFactor, activeNode.type);
+66:         }
+67:         
+68:         // Phase 4: Dispatch state update & update AudioEngine smoothly
+69:         this.gameLoop.setUserGuess(nodesArray);
+70:         this.audio.updateUserEQ(nodesArray);
+71:         this.hasInteracted = true;
+72:         this.updateValidationState();
+73:       };
+74: 
+75:       this.visualizer.onBandSelected = (index) => {
+76:         this.setActiveBand(index);
+77:       };
+78:     }
+79: 
+80:     // Audio Engine State Change Handler
+81:     this.audio.onStateChange = (state) => {
+82:       if (state.isPlaying !== undefined) {
+83:         this.updatePlayButton();
+84:       }
+85:     };
+86: 
+87:     // Multitrack Session Loaded Handler
+88:     this.audio.onMultitrackLoaded = (mtSession) => {
+89:       this.renderStemMixer(mtSession);
+90:     };
+91: 
+92:     // Start with onboarding welcome screen
+93:     this.setAppState('WELCOME');
+94:   }
+95: 
+96:   /**
+97:    * Phase 1: Toggles loading spinner visibility.
+98:    */
+99:   showAudioSpinner(show) {
+100:     const spinner = document.getElementById('audioLoadingSpinner');
+101:     if (spinner) {
+102:       if (show) {
+103:         spinner.classList.remove('hidden-overlay');
+104:       } else {
+105:         spinner.classList.add('hidden-overlay');
+106:       }
+107:     }
+108:   }
+109: 
+110:   /**
+111:    * Phase 4: Dynamically generates track selector dropdown mapping AUDIO_SOURCES with <optgroup>.
+112:    */
+113:   populateSourceDropdown() {
+114:     const select = document.getElementById('sourceSelect');
+115:     if (!select) return;
+116:     select.innerHTML = '';
+117: 
+118:     const categories = Array.from(new Set(AUDIO_SOURCES.map(t => t.category)));
+119: 
+120:     categories.forEach(catName => {
+121:       const optgroup = document.createElement('optgroup');
+122:       optgroup.label = catName;
+123: 
+124:       const tracks = AUDIO_SOURCES.filter(t => t.category === catName);
+125:       tracks.forEach(track => {
+126:         const opt = document.createElement('option');
+127:         opt.value = track.id;
+128:         opt.textContent = track.displayName;
+129:         optgroup.appendChild(opt);
+130:       });
+131: 
+132:       select.appendChild(optgroup);
+133:     });
+134: 
+135:     const uploadGroup = document.createElement('optgroup');
+136:     uploadGroup.label = "Archivos del Usuario";
+137:     const uploadOpt = document.createElement('option');
+138:     uploadOpt.value = 'upload-custom';
+139:     uploadOpt.textContent = '📁 Cargar Archivo OGG / MP3...';
+140:     uploadGroup.appendChild(uploadOpt);
+141:     select.appendChild(uploadGroup);
+142:   }
+143: 
+144:   /**
+145:    * Hide the Stem Mixer Panel
+146:    */
+147:   hideStemMixer() {
+148:     const panel = document.getElementById('stemMixerPanel');
+149:     if (panel) panel.classList.add('hidden');
+150:   }
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

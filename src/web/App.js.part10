@@ -1,0 +1,68 @@
+Created At: 2026-08-09T23:05:45Z
+Completed At: 2026-08-09T23:05:45Z
+File Path: `file:///c:/APPs/Ear%20Training/src/web/App.js`
+Total Lines: 1424
+Total Bytes: 51546
+Showing lines 1 to 60
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: /**
+2:  * @file App.js
+3:  * @description Main application controller integrating AudioEngine, Visualizer, GameLoopManager (FSM),
+4:  * and AudioResourceManager. Implements fully reactive (data-driven) UI reflection of global state,
+5:  * dynamic <optgroup> track selector, real-time loading spinner, and multi-band pedagogical results.
+6:  */
+7: 
+8: import { AudioEngine } from './AudioEngine.js?v=18';
+9: import { Visualizer } from './Visualizer.js?v=20';
+10: import { GameLoopManager, GAME_STATES } from './GameLoopManager.js?v=18';
+11: import { AUDIO_SOURCES, MULTITRACK_SESSIONS } from './AudioResourceManager.js?v=21';
+12: import { TrainingManager } from './TrainingManager.js?v=21';
+13: import { ScoringEngine, checkFilterFalseFriends, analyzeProPractices } from './ScoringEngine.js?v=21';
+14: 
+15: export class App {
+16:   constructor() {
+17:     this.audio = new AudioEngine();
+18:     this.gameLoop = new GameLoopManager();
+19:     this.trainer = new TrainingManager();
+20:     this.visualizer = null;
+21: 
+22:     // Validation Flags
+23:     this.hasListenedA = false;
+24:     this.hasListenedB = false;
+25:     this.hasInteracted = false;
+26:     this.activeAuditionIndex = -1;
+27: 
+28:     // Target Swap Lifelines
+29:     this.targetSwapsRemaining = 3;
+30: 
+31:     // Audio Resource Manager Listener Setup (Phase 1)
+32:     if (this.audio.resourceManager) {
+33:       this.audio.resourceManager.on('onLoadStart', () => this.showAudioSpinner(true));
+34:       this.audio.resourceManager.on('onLoadComplete', () => this.showAudioSpinner(false));
+35:       this.audio.resourceManager.on('onLoadError', () => this.showAudioSpinner(false));
+36:     }
+37:   }
+38: 
+39:   /**
+40:    * Initializes the application ecosystem.
+41:    */
+42:   async init() {
+43:     const canvas = document.getElementById('visualizerCanvas');
+44:     if (canvas) {
+45:       this.visualizer = new Visualizer(canvas, this.audio);
+46:     }
+47: 
+48:     this.bindOnboardingEvents();
+49:     this.bindEvents();
+50:     this.populateSourceDropdown();
+51: 
+52:     // Subscribe to GameLoopManager FSM & Store changes (Phase 2 & 4)
+53:     this.gameLoop.subscribe((state, store) => {
+54:       this.renderHUD(store);
+55:       this.onFSMStateChange(state, store);
+56:     });
+57: 
+58:     // Visualizer Node Change Handler (Normal & Pro Mode dragging)
+59:     if (this.visualizer) {
+60:       this.visualizer.onNodeChange = (nodesArray) => {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

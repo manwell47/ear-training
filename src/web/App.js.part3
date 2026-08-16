@@ -1,0 +1,208 @@
+Created At: 2026-08-09T12:18:39Z
+Completed At: 2026-08-09T12:18:39Z
+File Path: `file:///c:/APPs/Ear%20Training/src/web/App.js`
+Total Lines: 1252
+Total Bytes: 44478
+Showing lines 1 to 200
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: /**
+2:  * @file App.js
+3:  * @description Main application controller integrating AudioEngine, Visualizer, GameLoopManager (FSM),
+4:  * and AudioResourceManager. Implements fully reactive (data-driven) UI reflection of global state,
+5:  * dynamic <optgroup> track selector, real-time loading spinner, and multi-band pedagogical results.
+6:  */
+7: 
+8: import { AudioEngine } from './AudioEngine.js?v=18';
+9: import { Visualizer } from './Visualizer.js?v=18';
+10: import { GameLoopManager, GAME_STATES } from './GameLoopManager.js?v=18';
+11: import { AUDIO_SOURCES } from './AudioResourceManager.js?v=18';
+12: import { TrainingManager } from './TrainingManager.js?v=18';
+13: import { checkFilterFalseFriends, analyzeProPractices } from './ScoringEngine.js?v=18';
+14: 
+15: export class App {
+16:   constructor() {
+17:     this.audio = new AudioEngine();
+18:     this.gameLoop = new GameLoopManager();
+19:     this.trainer = new TrainingManager();
+20:     this.visualizer = null;
+21: 
+22:     // Validation Flags
+23:     this.hasListenedA = false;
+24:     this.hasListenedB = false;
+25:     this.hasInteracted = false;
+26:     this.activeAuditionIndex = -1;
+27: 
+28:     // Target Swap Lifelines
+29:     this.targetSwapsRemaining = 3;
+30: 
+31:     // Audio Resource Manager Listener Setup (Phase 1)
+32:     if (this.audio.resourceManager) {
+33:       this.audio.resourceManager.on('onLoadStart', () => this.showAudioSpinner(true));
+34:       this.audio.resourceManager.on('onLoadComplete', () => this.showAudioSpinner(false));
+35:       this.audio.resourceManager.on('onLoadError', () => this.showAudioSpinner(false));
+36:     }
+37:   }
+38: 
+39:   /**
+40:    * Initializes the application ecosystem.
+41:    */
+42:   async init() {
+43:     const canvas = document.getElementById('visualizerCanvas');
+44:     if (canvas) {
+45:       this.visualizer = new Visualizer(canvas, this.audio);
+46:     }
+47: 
+48:     this.bindOnboardingEvents();
+49:     this.bindEvents();
+50:     this.populateSourceDropdown();
+51: 
+52:     // Subscribe to GameLoopManager FSM & Store changes (Phase 2 & 4)
+53:     this.gameLoop.subscribe((state, store) => {
+54:       this.renderHUD(store);
+55:       this.onFSMStateChange(state, store);
+56:     });
+57: 
+58:     // Visualizer Node Change Handler (Normal & Pro Mode dragging)
+59:     if (this.visualizer) {
+60:       this.visualizer.onNodeChange = (nodesArray) => {
+61:         const activeIndex = this.visualizer.activeNodeIndex || 0;
+62:         const activeNode = nodesArray[activeIndex];
+63: 
+64:         if (activeNode) {
+65:           this.updateManualInputs(activeNode.frequencyHz, activeNode.gainDb, activeNode.qFactor, activeNode.type);
+66:         }
+67:         
+68:         // Phase 4: Dispatch state update & update AudioEngine
+69:         this.gameLoop.setUserGuess(nodesArray);
+70:         this.audio.setUserEQ(nodesArray);
+71:         this.hasInteracted = true;
+72:         this.updateValidationState();
+73:       };
+74: 
+75:       this.visualizer.onBandSelected = (index) => {
+76:         this.setActiveBand(index);
+77:       };
+78:     }
+79: 
+80:     // Audio Engine State Change Handler
+81:     this.audio.onStateChange = (state) => {
+82:       if (state.isPlaying !== undefined) {
+83:         this.updatePlayButton();
+84:       }
+85:     };
+86: 
+87:     // Start with onboarding welcome screen
+88:     this.setAppState('WELCOME');
+89:   }
+90: 
+91:   /**
+92:    * Phase 1: Toggles loading spinner visibility.
+93:    */
+94:   showAudioSpinner(show) {
+95:     const spinner = document.getElementById('audioLoadingSpinner');
+96:     if (spinner) {
+97:       if (show) {
+98:         spinner.classList.remove('hidden-overlay');
+99:       } else {
+100:         spinner.classList.add('hidden-overlay');
+101:       }
+102:     }
+103:   }
+104: 
+105:   /**
+106:    * Phase 4: Dynamically generates track selector dropdown mapping AUDIO_SOURCES with <optgroup>.
+107:    */
+108:   populateSourceDropdown() {
+109:     const select = document.getElementById('sourceSelect');
+110:     if (!select) return;
+111:     select.innerHTML = '';
+112: 
+113:     const categories = Array.from(new Set(AUDIO_SOURCES.map(t => t.category)));
+114: 
+115:     categories.forEach(catName => {
+116:       const optgroup = document.createElement('optgroup');
+117:       optgroup.label = catName;
+118: 
+119:       const tracks = AUDIO_SOURCES.filter(t => t.category === catName);
+120:       tracks.forEach(track => {
+121:         const opt = document.createElement('option');
+122:         opt.value = track.id;
+123:         opt.textContent = track.displayName;
+124:         optgroup.appendChild(opt);
+125:       });
+126: 
+127:       select.appendChild(optgroup);
+128:     });
+129: 
+130:     const uploadGroup = document.createElement('optgroup');
+131:     uploadGroup.label = "Archivos del Usuario";
+132:     const uploadOpt = document.createElement('option');
+133:     uploadOpt.value = 'upload-custom';
+134:     uploadOpt.textContent = '📁 Cargar Archivo OGG / MP3...';
+135:     uploadGroup.appendChild(uploadOpt);
+136:     select.appendChild(uploadGroup);
+137:   }
+138: 
+139:   /**
+140:    * Controls onboarding overlay workflow visibility.
+141:    * @param {'WELCOME'|'MODULE_SELECT'|'DIFFICULTY_SELECT'|'PLAYING'} newState 
+142:    */
+143:   setAppState(newState) {
+144:     const overlay = document.getElementById('onboardingOverlay');
+145:     const screenWelcome = document.getElementById('screenWelcome');
+146:     const screenModuleSelect = document.getElementById('screenModuleSelect');
+147:     const screenDifficultySelect = document.getElementById('screenDifficultySelect');
+148: 
+149:     [screenWelcome, screenModuleSelect, screenDifficultySelect].forEach(s => {
+150:       if (s) {
+151:         s.classList.remove('active-step');
+152:         s.classList.add('hidden');
+153:       }
+154:     });
+155: 
+156:     if (newState === 'WELCOME') {
+157:       if (overlay) overlay.classList.remove('hidden-overlay');
+158:       if (screenWelcome) {
+159:         screenWelcome.classList.remove('hidden');
+160:         setTimeout(() => screenWelcome.classList.add('active-step'), 20);
+161:       }
+162:     } else if (newState === 'MODULE_SELECT') {
+163:       if (overlay) overlay.classList.remove('hidden-overlay');
+164:       if (screenModuleSelect) {
+165:         screenModuleSelect.classList.remove('hidden');
+166:         setTimeout(() => screenModuleSelect.classList.add('active-step'), 20);
+167:       }
+168:     } else if (newState === 'DIFFICULTY_SELECT') {
+169:       if (overlay) overlay.classList.remove('hidden-overlay');
+170:       if (screenDifficultySelect) {
+171:         screenDifficultySelect.classList.remove('hidden');
+172:         setTimeout(() => screenDifficultySelect.classList.add('active-step'), 20);
+173:       }
+174:     } else if (newState === 'PLAYING') {
+175:       if (overlay) overlay.classList.add('hidden-overlay');
+176:     }
+177:   }
+178: 
+179:   bindOnboardingEvents() {
+180:     const btnStartWelcome = document.getElementById('btnStartWelcome');
+181:     if (btnStartWelcome) {
+182:       btnStartWelcome.addEventListener('click', () => {
+183:         this.setAppState('MODULE_SELECT');
+184:       });
+185:     }
+186: 
+187:     const btnSelectSurgicalEQ = document.getElementById('btnSelectSurgicalEQ');
+188:     if (btnSelectSurgicalEQ) {
+189:       btnSelectSurgicalEQ.addEventListener('click', () => {
+190:         this.setAppState('DIFFICULTY_SELECT');
+191:       });
+192:     }
+193: 
+194:     const btnBackToWelcome = document.getElementById('btnBackToWelcome');
+195:     if (btnBackToWelcome) {
+196:       btnBackToWelcome.addEventListener('click', () => {
+197:         this.setAppState('WELCOME');
+198:       });
+199:     }
+200: 
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

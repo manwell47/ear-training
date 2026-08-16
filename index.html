@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Ear Training App - CSS Grid Studio VST Spectrum</title>
+  <meta name="description" content="Plataforma profesional de entrenamiento auditivo y ecualización quirúrgica en el navegador usando Web Audio API. Sin instalación.">
+  <link rel="stylesheet" href="styles_v2.css">
+</head>
+<body>
+
+  <!-- ─── PUNTO 1: Contenedor Principal #app-root (CSS Grid Estricto: auto 1fr auto) ── -->
+  <div id="app-root">
+
+    <!-- Fila 1: Header (100% Ancho Superior, De Lado a Lado, Sin Bordes de Píldora) -->
+    <header id="topBar" class="main-header-container">
+      <div class="header-left">
+        <div class="brand">
+          <div class="brand-icon">🎛️</div>
+          <span class="brand-title">Ear Training</span>
+          <button id="btnLobbyMenu" class="btn btn-secondary btn-compact" style="margin-left: 0.5rem;" onclick="window.setMode && window.setMode('easy')">
+            ⚙️ Menú
+          </button>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="toolbar-group">
+          <span class="toolbar-label">Fuente:</span>
+          <div class="custom-select-wrapper" id="sourceDropdownWrapper">
+            <select id="sourceSelect" class="hidden-select"></select>
+          </div>
+          <input type="file" id="fileInput" accept="audio/*" class="hidden">
+          
+          <div class="volume-control" style="display: flex; align-items: center; gap: 8px;">
+            <span class="vol-label">Vol:</span>
+            <div style="position: relative; width: 120px; height: 14px; display: flex; align-items: center; border-radius: 3px; overflow: hidden; background: #0b0c10; box-shadow: inset 0 1px 3px rgba(0,0,0,0.8);">
+              <canvas id="vuMeter" width="120" height="14" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+              <input type="range" id="volumeSlider" class="fader-fused" min="0" max="1" step="0.01" value="0.8" style="width: 100%; height: 100%; margin: 0; position: relative; z-index: 10; opacity: 1;">
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar-group">
+          <button id="playBtn" class="btn btn-primary play-main-btn">
+            <span>▶</span> Play
+          </button>
+          
+          <!-- Transport Scrub Bar -->
+          <input type="range" id="transportScrub" class="transport-scrub" min="0" max="100" step="0.1" value="0" style="width: 150px; margin-left: 10px;">
+
+          <div class="eq-toggle-group">
+            <button id="btnRouteA" class="eq-toggle-btn active-off">EQ Off</button>
+            <button id="btnRouteB" class="eq-toggle-btn">EQ On</button>
+            <button id="btnRouteC" class="eq-toggle-btn hidden">Mi Respuesta</button>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="header-right">
+        <!-- Selector de Dificultad -->
+        <div class="toolbar-group">
+          <div class="mode-group">
+            <button id="btnModeEasy" class="mode-btn active" data-mode="easy" onclick="window.setMode && window.setMode('easy')">Fácil</button>
+            <button id="btnModeNormal" class="mode-btn" data-mode="normal" onclick="window.setMode && window.setMode('normal')">Normal</button>
+            <button id="btnModeHard" class="mode-btn" data-mode="hard" onclick="window.setMode && window.setMode('hard')">Pro</button>
+          </div>
+        </div>
+
+        <div class="toolbar-group">
+          <div class="soundgym-stat">
+            <span class="soundgym-stat-label">SCORE</span>
+            <span id="soundgymScore" class="soundgym-stat-val text-amber">0</span>
+          </div>
+
+          <div class="soundgym-stat">
+            <span class="soundgym-stat-label">RANGO</span>
+            <span id="soundgymRank" class="soundgym-stat-val text-amber" style="color: #38bdf8; font-weight: bold;">Tiracables</span>
+          </div>
+
+          <div class="soundgym-stat">
+            <span class="soundgym-stat-label">STAGE</span>
+            <span id="soundgymStage" class="soundgym-stat-val text-cyan">1/5</span>
+          </div>
+
+          <div id="livesContainer" class="lives-container"></div>
+
+          <button id="swapTargetBtn" class="btn btn-secondary btn-compact">
+            🔀 Cambiar <span id="swapCountBadge" class="badge-easy">3/3</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Fila 2: Workspace / Canvas (1fr, Ocupa 100% Ancho y Alto de la Celda Central, Sin Popups Flotantes) -->
+    <main id="workspace" class="workspace" style="position: relative;">
+      <canvas id="visualizerCanvas"></canvas>
+
+      <!-- Analyzer Controls Overlay -->
+      <div id="analyzerControls" style="position: absolute; bottom: 12px; left: 16px; z-index: 5; display: flex; align-items: center;">
+        <button id="btnToggleRta" class="analyzer-res-btn" title="Alternar Resolución RTA">RTA: <span id="rtaModeLabel" style="color:#38bdf8; margin-left:4px;">SMOOTH</span></button>
+      </div>
+
+      <!-- Stem Mixer Panel (Hidden by default) -->
+      <div id="stemMixerPanel" class="stem-mixer-panel hidden">
+        <div class="stem-mixer-header">
+          <h3>🎛️ Stem Mixer</h3>
+          <span id="stemMixerTitle">Beat</span>
+        </div>
+        <div id="stemMixerTracks" class="stem-mixer-tracks">
+          <!-- Tracks dynamically injected here by App.js -->
+        </div>
+      </div>
+    </main>
+
+    <!-- Fila 3: Bottom Dock (100% Ancho Inferior, De Lado a Lado) -->
+    <footer id="bottomDock" class="bottom-dock">
+      
+      <!-- Modo Fácil: Cuadrícula Horizontal de Opciones A, B, C, D -->
+      <div id="easyModeSection" style="width: 100%;">
+        <div id="easyOptionsGrid" class="easy-options-grid-horizontal"></div>
+      </div>
+
+      <!-- Modo Normal / Pro: Controles Manuales Horizontal -->
+      <div id="manualModeSection" class="hidden" style="width: 100%;">
+        <!-- Selector Multi-banda (Oculto por defecto, visible en Boss Mode) -->
+        <div id="bandSelector" class="band-selector hidden" style="display: flex; gap: 8px; justify-content: center; margin-bottom: 8px;">
+          <button class="btn btn-band active" data-band="0">🟢 Banda 1</button>
+          <button class="btn btn-band" data-band="1">🟡 Banda 2</button>
+        </div>
+        <div class="surgical-panel">
+
+          <div class="surgical-knob-group">
+            <div class="surgical-label">
+              <span>FRECUENCIA</span>
+              <span id="freqValue" class="surgical-value">1000 Hz</span>
+            </div>
+            <input type="range" id="freqInput" min="20" max="20000" step="1" value="1000" class="surgical-slider">
+          </div>
+
+          <div class="surgical-knob-group">
+            <div class="surgical-label">
+              <span>GANANCIA</span>
+              <span id="gainValue" class="surgical-value">0.0 dB</span>
+            </div>
+            <input type="range" id="gainInput" min="-24" max="24" step="0.1" value="0" class="surgical-slider">
+          </div>
+
+          <div class="surgical-knob-group">
+            <div class="surgical-label">
+              <span>FACTOR Q</span>
+              <span id="qValue" class="surgical-value">2.0</span>
+            </div>
+            <input type="range" id="qInput" min="0.2" max="20" step="0.1" value="2.0" class="surgical-slider">
+          </div>
+
+          <div id="hardControlsGroup" class="surgical-knob-group" style="display: flex;">
+            <div class="surgical-label">TIPO FILTRO</div>
+            <select id="typeSelect" class="surgical-select">
+              <option value="peaking">Campana (Bell)</option>
+              <option value="lowpass">Low Pass</option>
+              <option value="highpass">High Pass</option>
+              <option value="lowshelf">Low Shelf</option>
+              <option value="highshelf">High Shelf</option>
+              <option value="notch">Notch</option>
+            </select>
+          </div>
+
+          <div id="auditionStatusHint" class="audition-hint-bar-compact">
+            <span>🎧</span> <span id="auditionHintText">Escucha "EQ Off" y "EQ On" para responder.</span>
+          </div>
+
+          <button id="submitGuessBtn" class="btn btn-accent btn-submit-disabled" disabled style="padding: 0.6rem 1.4rem; font-size: 0.9rem; flex-shrink: 0;">
+            🎯 Enviar Respuesta
+          </button>
+
+        </div>
+      </div>
+
+      <!-- Componente de Resultados Integrado en Fila 3 (Reemplaza a las Opciones al terminar el ensayo) -->
+      <div id="resultsDockSection" class="results-dock-section hidden">
+        
+        <div class="results-main-row">
+          <!-- Bloque Izquierdo: Estado del Resultado + Subtítulo Objetivo + Botones Audición Hardware -->
+          <div class="results-block-left">
+            <div class="results-title-group">
+              <span id="resultsIcon" class="results-icon">🎉</span>
+              <span id="resultsTitle" class="results-title">¡Opción Correcta!</span>
+            </div>
+            <div id="resultsSubtitle" class="results-subtitle">Objetivo: 800 Hz (-6.0 dB)</div>
+
+            <div class="results-audio-buttons">
+              <button id="pBtnListenTarget" class="btn-hardware">🎧 Objetivo</button>
+              <button id="pBtnListenGuess" class="btn-hardware">🎧 Mi Intento</button>
+              <button id="pBtnListenFlat" class="btn-hardware">🎧 Plano</button>
+            </div>
+          </div>
+
+          <!-- Bloque Central: Dashboard de Estadísticas Sub-Grid 4 Columnas -->
+          <div class="results-block-center">
+            <div class="results-stat-cell">
+              <span class="stat-label">PUNTOS</span>
+              <span id="pStatPoints" class="stat-value text-amber">+30,000</span>
+            </div>
+            <div class="results-stat-cell">
+              <span class="stat-label">PRECISIÓN</span>
+              <span id="pStatScore" class="stat-value text-cyan">100%</span>
+            </div>
+            <div class="results-stat-cell">
+              <span class="stat-label">DISTANCIA (OCT)</span>
+              <span id="pStatFreqError" class="stat-value text-purple">0.00 oct</span>
+            </div>
+            <div class="results-stat-cell">
+              <span class="stat-label">DIFERENCIA (dB)</span>
+              <span id="pStatGainError" class="stat-value text-purple">0.0 dB</span>
+            </div>
+          </div>
+
+          <!-- Bloque Derecho: Botón Acción Principal Siguiente Ensayo -->
+          <div class="results-block-right">
+            <button id="bannerNextBtn" class="btn-next-trial">
+              Siguiente Ensayo ➔
+            </button>
+          </div>
+        </div>
+
+        <!-- Tarea 3: Bocadillo Didáctico / Componente UI de Alerta Pedagógica Falsos Amigos -->
+        <div id="falseFriendsCard" class="false-friends-card hidden">
+          <span class="false-friends-emoji">👨‍🏫</span>
+          <span class="false-friends-prefix">Lección Rápida:</span>
+          <span id="falseFriendsMessage" class="false-friends-message"></span>
+        </div>
+
+        <!-- NEW: Acoustic Context Pedagogical Feedback -->
+        <div id="acousticContextCard" class="acoustic-context-card hidden">
+          <span class="acoustic-context-emoji">🎤</span>
+          <div class="acoustic-context-content">
+            <div class="acoustic-context-title">Efecto de TU filtro en la mezcla</div>
+            <div id="acousticContextMessage" class="acoustic-context-message"></div>
+          </div>
+        </div>
+
+        <!-- Tarea 3: UI Dashboard Analítico (Modo Pro) - Impacto en la Mezcla -->
+        <div id="proAnalysisCard" class="pro-analysis-card hidden">
+          <div class="pro-analysis-header">
+            <span class="pro-analysis-title">⚡ IMPACTO DE TU INTENTO (PRO)</span>
+          </div>
+          <div id="proAnalysisTerminal" class="pro-terminal-block"></div>
+        </div>
+
+      </div>
+
+    </footer>
+
+  </div>
+
+  <!-- Onboarding Modal Overlay (hidden-overlay by default) -->
+  <div id="onboardingOverlay" class="onboarding-overlay hidden-overlay">
+    <div class="onboarding-card">
+
+      <!-- Step 0: WELCOME -->
+      <div id="screenWelcome" class="onboarding-step hidden">
+        <div class="welcome-hero">
+          <div class="welcome-logo">🎛️</div>
+          <h1 class="welcome-title">Ear Training App</h1>
+          <h2 class="welcome-subtitle">Mejora tu precisión auditiva</h2>
+          <p class="welcome-desc">
+            Desarrollado para ingenieros de mezcla y máster. Entrena tu oído para identificar picos de frecuencia, 
+            cortes quirúrgicos, variaciones de ganancia y anomalías espectrales con bandas de tolerancia pedagógica.
+          </p>
+          <button id="btnStartWelcome" class="btn btn-primary btn-hero" style="margin-top: 1rem;">
+            Iniciar Sesión de Entrenamiento ➔
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 1: MODULE_SELECT -->
+      <div id="screenModuleSelect" class="onboarding-step hidden">
+        <div class="step-header">
+          <h2 class="step-title">Selecciona el Módulo de Entrenamiento</h2>
+          <p class="step-subtitle">Elige la disciplina técnica en la que deseas practicar hoy:</p>
+        </div>
+
+        <div class="modules-grid">
+          <!-- Module 1: Surgical EQ (Active) -->
+          <div class="module-card active-module">
+            <div class="module-icon">🎛️</div>
+            <div class="module-name">
+              <span>Surgical EQ</span>
+              <span class="badge-easy">Disponible</span>
+            </div>
+            <p class="module-desc">
+              Identificación precisa de frecuencias (20 Hz - 20 kHz), ganancia en dB, factor Q y tipos de filtro.
+            </p>
+            <button id="btnSelectSurgicalEQ" class="btn btn-primary" style="margin-top: auto;">
+              Seleccionar ➔
+            </button>
+          </div>
+
+          <!-- Module 2: Dynamic Range (Locked) -->
+          <div class="module-card locked-module">
+            <div class="module-icon">🎚️</div>
+            <div class="module-name">
+              <span>Dynamic Range</span>
+              <span class="badge-locked">Próximamente</span>
+            </div>
+            <p class="module-desc">
+              Entrenamiento en compresión, ataque, release, ratio, knee y saturación armónica.
+            </p>
+            <button class="btn btn-disabled" disabled>Próximamente</button>
+          </div>
+
+          <!-- Module 3: Spatial Pan (Locked) -->
+          <div class="module-card locked-module">
+            <div class="module-icon">🔊</div>
+            <div class="module-name">
+              <span>Spatial Pan</span>
+              <span class="badge-locked">Próximamente</span>
+            </div>
+            <p class="module-desc">
+              Localización de imagen estéreo L/R, panoramización psychoacústica y balance de fase.
+            </p>
+            <button class="btn btn-disabled" disabled>Próximamente</button>
+          </div>
+        </div>
+
+        <div class="step-footer">
+          <button id="btnBackToWelcome" class="btn btn-secondary">
+            ← Atrás
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: DIFFICULTY_SELECT -->
+      <div id="screenDifficultySelect" class="onboarding-step hidden">
+        <div class="step-header">
+          <h2 class="step-title">Selecciona tu Nivel</h2>
+          <p class="step-subtitle">Elige el formato pedagógico según tu experiencia:</p>
+        </div>
+
+        <div class="difficulty-grid">
+          <!-- Easy Level -->
+          <div class="difficulty-card easy-card" data-level="easy" onclick="window.setMode && window.setMode('easy')">
+            <div>
+              <div class="card-header-row">
+                <h3 class="card-title">Fácil</h3>
+                <span class="difficulty-badge badge-easy">Opciones</span>
+              </div>
+              <p class="module-desc">
+                Escucha el objetivo y elige la frecuencia correcta entre 4 opciones dadas (A, B, C, D).
+              </p>
+            </div>
+            <button class="btn btn-primary btn-select-level" data-level="easy" onclick="window.setMode && window.setMode('easy')" style="width: 100%;">
+              Seleccionar Fácil ➔
+            </button>
+          </div>
+
+          <!-- Normal Level -->
+          <div class="difficulty-card normal-card" data-level="normal" onclick="window.setMode && window.setMode('normal')">
+            <div>
+              <div class="card-header-row">
+                <h3 class="card-title">Normal</h3>
+                <span class="difficulty-badge badge-normal">Banda de Tolerancia</span>
+              </div>
+              <p class="module-desc">
+                Encuentra la frecuencia en la gráfica con <strong>margen de tolerancia amplio</strong> (obtén aciertos y puntos al estar dentro de la banda).
+              </p>
+            </div>
+            <button class="btn btn-accent btn-select-level" data-level="normal" onclick="window.setMode && window.setMode('normal')" style="width: 100%;">
+              Seleccionar Normal ➔
+            </button>
+          </div>
+
+          <!-- Hard Level -->
+          <div class="difficulty-card hard-card" data-level="hard" onclick="window.setMode && window.setMode('hard')">
+            <div>
+              <div class="card-header-row">
+                <h3 class="card-title">Pro Surgical</h3>
+                <span class="difficulty-badge badge-hard">Banda Tolerante</span>
+              </div>
+              <p class="module-desc">
+                Cortes estrechos y variaciones sutiles. Ajusta Frecuencia, Ganancia, Q y Tipo de Filtro.
+              </p>
+            </div>
+            <button class="btn btn-danger btn-select-level" data-level="hard" onclick="window.setMode && window.setMode('hard')" style="width: 100%;">
+              Seleccionar Pro ➔
+            </button>
+          </div>
+        </div>
+
+        <div class="step-footer">
+          <button id="btnBackToModules" class="btn btn-secondary">
+            ← Atrás
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Game Over Modal -->
+  <div id="gameOverModal" class="modal-backdrop">
+    <div class="modal-card vst-glass-panel">
+      <div class="modal-header">
+        <div class="modal-icon failure">💀</div>
+        <div>
+          <h3 class="text-rose" style="font-size: 1.25rem;">¡Señal Perdida! Game Over</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem;">Tus vidas han llegado a cero.</p>
+        </div>
+      </div>
+
+      <div class="feedback-details">
+        <div class="detail-row"><span>Score Total:</span> <strong id="finalScorePoints" class="text-amber">0</strong></div>
+        <div class="detail-row"><span>Mayor Racha:</span> <strong id="finalStreak">0</strong></div>
+        <div class="detail-row"><span>Precisión Promedio:</span> <strong id="finalScore" class="text-cyan">0%</strong></div>
+      </div>
+
+      <button id="restartGameBtn" class="btn btn-accent" style="justify-content: center; width: 100%;">
+        🔄 Reiniciar Sesión
+      </button>
+    </div>
+  </div>
+
+  <!-- Level Up Modal Overlay -->
+  <div id="levelUpModal" class="modal-backdrop">
+    <div class="modal-card vst-glass-panel text-center" style="max-width: 480px; text-align: center; border: 2px solid #f59e0b; box-shadow: 0 0 35px rgba(245, 158, 11, 0.45);">
+      <div style="font-size: 3.5rem; margin-bottom: 0.5rem; animation: pulse 1s infinite;">🏆</div>
+      <h2 style="font-size: 1.8rem; color: #f59e0b; margin-bottom: 0.3rem;">¡VICTORIA CONTRA EL BOSS!</h2>
+      <p style="font-size: 0.95rem; color: #e2e8f0; margin-bottom: 1.2rem;">Has superado la prueba del cliente con éxito.</p>
+      
+      <div style="background: rgba(245, 158, 11, 0.12); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid rgba(245, 158, 11, 0.35);">
+        <div style="font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Nuevo Rango Profesional Conseguido</div>
+        <div id="modalNewRankTitle" style="font-size: 1.5rem; color: #38bdf8; font-weight: bold; margin-top: 0.4rem;">Asistente de Estudio</div>
+      </div>
+
+      <button id="btnContinueLevelUp" class="btn btn-accent" style="justify-content: center; width: 100%; font-size: 1.05rem;">
+        Continuar al Siguiente Nivel ➔
+      </button>
+    </div>
+  </div>
+
+  <!-- Boss Defeat Modal Overlay -->
+  <div id="bossDefeatModal" class="modal-backdrop">
+    <div class="modal-card vst-glass-panel text-center" style="max-width: 480px; text-align: center; border: 2px solid #f43f5e; box-shadow: 0 0 35px rgba(244, 63, 94, 0.45);">
+      <div style="font-size: 3.5rem; margin-bottom: 0.5rem;">💔</div>
+      <h2 style="font-size: 1.8rem; color: #f43f5e; margin-bottom: 0.5rem;">DERROTA EN EL BOSS</h2>
+      <p id="modalDefeatMessage" style="font-size: 0.95rem; color: #e2e8f0; margin-bottom: 1.2rem;">
+        Has fallado la mezcla del cliente. Vuelve a afinar tu oído y reinténtalo.
+      </p>
+      <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 1.5rem; background: rgba(244, 63, 94, 0.1); padding: 0.6rem; border-radius: 6px;">
+        Penalización: Has vuelto a caer al <strong>Stage 4/5</strong>.
+      </div>
+
+      <button id="btnRetryBoss" class="btn btn-secondary" style="justify-content: center; width: 100%; border-color: #f43f5e; color: #f43f5e; font-size: 1rem;">
+        Volver al Stage 4 y Reintentar ➔
+      </button>
+      <div id="screenWelcome" class="onboarding-step hidden">
+        <div class="welcome-hero">
+          <div class="welcome-logo">🎛️</div>
+          <h1 class="welcome-title">Ear Training App</h1>
+          <h2 class="welcome-subtitle">Mejora tu precisión auditiva</h2>
+          <p class="welcome-desc">
+            Desarrollado para ingenieros de mezcla y máster. Entrena tu oído para identificar picos de frecuencia, 
+            cortes quirúrgicos, variaciones de ganancia y anomalías espectrales con bandas de tolerancia pedagógica.
+          </p>
+          <button id="btnStartWelcome" class="btn btn-primary btn-hero" style="margin-top: 1rem;">
+            Iniciar Sesión de Entrenamiento ➔
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 1: MODULE_SELECT -->
+      <div id="screenModuleSelect" class="onboarding-step hidden">
+        <div class="step-header">
+          <h2 class="step-title">Selecciona el Módulo de Entrenamiento</h2>
+          <p class="step-subtitle">Elige la disciplina técnica en la que deseas practicar hoy:</p>
+        </div>
+
+        <div class="modules-grid">
+          <!-- Module 1: Surgical EQ (Active) -->
+          <div class="module-card active-module">
+            <div class="module-icon">🎛️</div>
+            <div class="module-name">
+              <span>Surgical EQ</span>
+              <span class="badge-easy">Disponible</span>
+            </div>
+            <p class="module-desc">
+              Identificación precisa de frecuencias (20 Hz - 20 kHz), ganancia en dB, factor Q y tipos de filtro.
+            </p>
+            <button id="btnSelectSurgicalEQ" class="btn btn-primary" style="margin-top: auto;">
+              Seleccionar ➔
+            </button>
+          </div>
+
+          <!-- Module 2: Dynamic Range (Locked) -->
+          <div class="module-card locked-module">
+            <div class="module-icon">🎚️</div>
+            <div class="module-name">
+              <span>Dynamic Range</span>
+              <span class="badge-locked">Próximamente</span>
+            </div>
+            <p class="module-desc">
+              Entrenamiento en compresión, ataque, release, ratio, knee y saturación armónica.
+            </p>
+            <button class="btn btn-disabled" disabled>Próximamente</button>
+          </div>
+
+          <!-- Module 3: Spatial Pan (Locked) -->
+          <div class="module-card locked-module">
+            <div class="module-icon">🔊</div>
+            <div class="module-name">
+              <span>Spatial Pan</span>
+              <span class="badge-locked">Próximamente</span>
+            </div>
+            <p class="module-desc">
+              Localización de imagen estéreo L/R, panoramización psychoacústica y balance de fase.
+            </p>
+            <button class="btn btn-disabled" disabled>Próximamente</button>
+          </div>
+        </div>
+
+        <div class="step-footer">
+          <button id="btnBackToWelcome" class="btn btn-secondary">
+            ← Atrás
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: DIFFICULTY_SELECT -->
+      <div id="screenDifficultySelect" class="onboarding-step hidden">
+        <div class="step-header">
+          <h2 class="step-title">Selecciona tu Nivel</h2>
+          <p class="step-subtitle">Elige el formato pedagógico según tu experiencia:</p>
+        </div>
+
+        <div class="difficulty-grid">
+          <!-- Easy Level -->
+          <div class="difficulty-card easy-card" data-level="easy" onclick="window.setMode && window.setMode('easy')">
+            <div>
+              <div class="card-header-row">
+                <h3 class="card-title">Fácil</h3>
+                <span class="difficulty-badge badge-easy">Opciones</span>
+              </div>
+              <p class="module-desc">
+                Escucha el objetivo y elige la frecuencia correcta entre 4 opciones dadas (A, B, C, D).
+              </p>
+            </div>
+            <button class="btn btn-primary btn-select-level" data-level="easy" onclick="window.setMode && window.setMode('easy')" style="width: 100%;">
+              Seleccionar Fácil ➔
+            </button>
+          </div>
+
+          <!-- Normal Level -->
+          <div class="difficulty-card normal-card" data-level="normal" onclick="window.setMode && window.setMode('normal')">
+            <div>
+              <div class="card-header-row">
+                <h3 class="card-title">Normal</h3>
+                <span class="difficulty-badge badge-normal">Banda de Tolerancia</span>
+              </div>
+              <p class="module-desc">
+                Encuentra la frecuencia en la gráfica con <strong>margen de tolerancia amplio</strong> (obtén aciertos y puntos al estar dentro de la banda).
+              </p>
+            </div>
+            <button class="btn btn-accent btn-select-level" data-level="normal" onclick="window.setMode && window.setMode('normal')" style="width: 100%;">
+              Seleccionar Normal ➔
+            </button>
+          </div>
+
+          <!-- Hard Level -->
+          <div class="difficulty-card hard-card" data-level="hard" onclick="window.setMode && window.setMode('hard')">
+            <div>
+              <div class="card-header-row">
+                <h3 class="card-title">Pro Surgical</h3>
+                <span class="difficulty-badge badge-hard">Banda Tolerante</span>
+              </div>
+              <p class="module-desc">
+                Cortes estrechos y variaciones sutiles. Ajusta Frecuencia, Ganancia, Q y Tipo de Filtro.
+              </p>
+            </div>
+            <button class="btn btn-danger btn-select-level" data-level="hard" onclick="window.setMode && window.setMode('hard')" style="width: 100%;">
+              Seleccionar Pro ➔
+            </button>
+          </div>
+        </div>
+
+        <div class="step-footer">
+          <button id="btnBackToModules" class="btn btn-secondary">
+            ← Atrás
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Game Over Modal -->
+  <div id="gameOverModal" class="modal-backdrop">
+    <div class="modal-card vst-glass-panel">
+      <div class="modal-header">
+        <div class="modal-icon failure">💀</div>
+        <div>
+          <h3 class="text-rose" style="font-size: 1.25rem;">¡Señal Perdida! Game Over</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem;">Tus vidas han llegado a cero.</p>
+        </div>
+      </div>
+
+      <div class="feedback-details">
+        <div class="detail-row"><span>Score Total:</span> <strong id="finalScorePoints" class="text-amber">0</strong></div>
+        <div class="detail-row"><span>Mayor Racha:</span> <strong id="finalStreak">0</strong></div>
+        <div class="detail-row"><span>Precisión Promedio:</span> <strong id="finalScore" class="text-cyan">0%</strong></div>
+      </div>
+
+      <button id="restartGameBtn" class="btn btn-accent" style="justify-content: center; width: 100%;">
+        🔄 Reiniciar Sesión
+      </button>
+    </div>
+  </div>
+
+  <!-- Level Up Modal Overlay -->
+  <div id="levelUpModal" class="modal-backdrop">
+    <div class="modal-card vst-glass-panel text-center" style="max-width: 480px; text-align: center; border: 2px solid #f59e0b; box-shadow: 0 0 35px rgba(245, 158, 11, 0.45);">
+      <div style="font-size: 3.5rem; margin-bottom: 0.5rem; animation: pulse 1s infinite;">🏆</div>
+      <h2 style="font-size: 1.8rem; color: #f59e0b; margin-bottom: 0.3rem;">¡VICTORIA CONTRA EL BOSS!</h2>
+      <p style="font-size: 0.95rem; color: #e2e8f0; margin-bottom: 1.2rem;">Has superado la prueba del cliente con éxito.</p>
+      
+      <div style="background: rgba(245, 158, 11, 0.12); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid rgba(245, 158, 11, 0.35);">
+        <div style="font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Nuevo Rango Profesional Conseguido</div>
+        <div id="modalNewRankTitle" style="font-size: 1.5rem; color: #38bdf8; font-weight: bold; margin-top: 0.4rem;">Asistente de Estudio</div>
+      </div>
+
+      <button id="btnContinueLevelUp" class="btn btn-accent" style="justify-content: center; width: 100%; font-size: 1.05rem;">
+        Continuar al Siguiente Nivel ➔
+      </button>
+    </div>
+  </div>
+
+  <!-- Boss Defeat Modal Overlay -->
+  <div id="bossDefeatModal" class="modal-backdrop">
+    <div class="modal-card vst-glass-panel text-center" style="max-width: 480px; text-align: center; border: 2px solid #f43f5e; box-shadow: 0 0 35px rgba(244, 63, 94, 0.45);">
+      <div style="font-size: 3.5rem; margin-bottom: 0.5rem;">💔</div>
+      <h2 style="font-size: 1.8rem; color: #f43f5e; margin-bottom: 0.5rem;">DERROTA EN EL BOSS</h2>
+      <p id="modalDefeatMessage" style="font-size: 0.95rem; color: #e2e8f0; margin-bottom: 1.2rem;">
+        Has fallado la mezcla del cliente. Vuelve a afinar tu oído y reinténtalo.
+      </p>
+      <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 1.5rem; background: rgba(244, 63, 94, 0.1); padding: 0.6rem; border-radius: 6px;">
+        Penalización: Has vuelto a caer al <strong>Stage 4/5</strong>.
+      </div>
+
+      <button id="btnRetryBoss" class="btn btn-secondary" style="justify-content: center; width: 100%; border-color: #f43f5e; color: #f43f5e; font-size: 1rem;">
+        Volver al Stage 4 y Reintentar ➔
+      </button>
+    </div>
+  </div>
+
+  <!-- Audio Loading Spinner Overlay -->
+  <div id="audioLoadingSpinner" class="spinner-overlay hidden-overlay">
+    <div class="spinner-card">
+      <div class="spinner-ring"></div>
+      <span class="spinner-text">Cargando Audio...</span>
+    </div>
+  </div>
+
+  <!-- Application Script Entry with Cache Buster -->
+  <script>
+    // SUPER AGGRESSIVE ERROR HANDLING FOR CEF/EMBEDDED WEBVIEWS
+    function displayErrorOnScreen(msg) {
+      const errDiv = document.createElement('div');
+      errDiv.style = "position:relative; width:100%; background:red; color:white; z-index:9999; padding:10px; font-family: monospace; border-bottom: 1px solid white;";
+      errDiv.innerHTML = `<strong>ERROR:</strong> ${msg}`;
+      document.body.prepend(errDiv);
+    }
+    
+    window.addEventListener('error', function(event) {
+      displayErrorOnScreen(event.message + ' at ' + event.filename + ':' + event.lineno);
+    });
+    
+    window.addEventListener('unhandledrejection', function(event) {
+      displayErrorOnScreen(event.reason ? (event.reason.message || event.reason) : 'Unknown Promise Rejection');
+    });
+
+    const originalConsoleError = console.error;
+    console.error = function(...args) {
+      displayErrorOnScreen(args.map(a => typeof a === 'object' && a ? (a.message || JSON.stringify(a)) : String(a)).join(' '));
+      originalConsoleError.apply(console, args);
+    };
+  </script>
+  <script type="module" src="./src/web/App_v43.js"></script>
+</body>
+
+
+

@@ -1,0 +1,28 @@
+Created At: 2026-08-09T14:36:53Z
+Completed At: 2026-08-09T14:36:53Z
+File Path: `file:///c:/APPs/Ear%20Training/src/web/App.js`
+Total Lines: 1269
+Total Bytes: 45098
+Showing lines 1 to 20
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: /**
+2:  * @file App.js
+3:  * @description Main application controller integrating AudioEngine, Visualizer, GameLoopManager (FSM),
+4:  * and AudioResourceManager. Implements fully reactive (data-driven) UI reflection of global state,
+5:  * dynamic <optgroup> track selector, real-time loading spinner, and multi-band pedagogical results.
+6:  */
+7: 
+8: import { AudioEngine } from './AudioEngine.js?v=18';
+9: import { Visualizer } from './Visualizer.js?v=18';
+10: import { GameLoopManager, GAME_STATES } from './GameLoopManager.js?v=18';
+11: import { AUDIO_SOURCES } from './AudioResourceManager.js?v=18';
+12: import { TrainingManager } from './TrainingManager.js?v=18';
+13: import { checkFilterFalseFriends, analyzeProPractices } from './ScoringEngine.js?v=18';
+14: 
+15: export class App {
+16:   constructor() {
+17:     this.audio = new AudioEngine();
+18:     this.gameLoop = new GameLoopManager();
+19:     this.trainer = new TrainingManager();
+20:     this.visualizer = null;
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

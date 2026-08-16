@@ -1,0 +1,138 @@
+  showPedagogicalReview(result) {
+    if (!this.audio.isPlaying && this.audio.ctx) {
+      this.audio.play();
+    }
+    this.updatePlayButton();
+
+    this.audio.setRoute('B');
+    this.updateABButtons('B');
+
+    const easyContainer = document.getElementById('easyModeSection');
+    const manualContainer = document.getElementById('manualModeSection');
+    if (easyContainer) easyContainer.classList.add('hidden');
+    if (manualContainer) manualContainer.classList.add('hidden');
+
+    const resultsSection = document.getElementById('resultsDockSection');
+    if (resultsSection) resultsSection.classList.remove('hidden');
+
+    const targets = this.trainer.targetFilters || [];
+
+    // Set Target EQ Filter parameters with exact target type!
+    this.audio.setTargetEQ(targets);
+
+    if (this.visualizer) {
+      this.visualizer.showTargetCurve = true;
+      this.visualizer.didacticTargets = targets.map(t => ({ ...t }));
+    }
+
+    if (result.bandResults && result.bandResults.length > 0) {
+        // Collect user guesses from band results
+        const userGuesses = result.bandResults.map(br => br.guess);
+        this.audio.setUserEQ(userGuesses);
+
+        if (this.visualizer) {
+            this.visualizer.didacticUsers = userGuesses.map(g => ({ ...g }));
+            // Only show user curve if not perfectly exact
+            const isExactHit = (result.scorePercentage === 100);
+            this.visualizer.showUserCurve = !isExactHit;
+        }
+    } else {
+      if (this.visualizer) {
+        this.visualizer.didacticUsers = [];
+        this.visualizer.showUserCurve = false;
+      }
+    }
+
+    const icon = document.getElementById('resultsIcon');
+    const title = document.getElementById('resultsTitle');
+    const subtitle = document.getElementById('resultsSubtitle');
+
+    const rawLabel = result.ratingLabel || '';
+    const cleanLabel = rawLabel.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
+
+    const target = this.trainer.currentTarget;
+    let subtitleText = '';
+
+    if (this.trainer.isBossStage) {
+        subtitleText = `Objetivo: Boss Fight Multi-Banda (${targets.length} Filtros)`;
+    } else {
+        const filtersWithoutGain = ['notch', 'highpass', 'lowpass', 'hp', 'lp'];
+        const targetTypeLower = (target.type || '').toLowerCase();
+        const isTargetNoGain = filtersWithoutGain.includes(targetTypeLower);
+        const targetGainStr = isTargetNoGain ? '' : ` (${target.gainDb > 0 ? '+' : ''}${target.gainDb.toFixed(1)} dB)`;
+
+        const targetTypeStr = this.formatFilterTypeName(target.type);
+        subtitleText = `Objetivo: ${targetTypeStr} ${Math.round(target.frequencyHz)} Hz${targetGainStr}`;
+
+        if (this.trainer.difficulty === 'hard') {
+          if (result.isTypeCorrect) {
+            subtitleText += ` <span style="color:#10b981; font-weight:bold; margin-left:8px;">\u2728 Filtro Acertado! (+100 PTS)</span>`;
+          } else if (result.userType) {
+            subtitleText += ` <span style="color:#f43f5e; font-weight:bold; margin-left:8px;">\u274C Filtro Incorrecto (${this.formatFilterTypeName(result.userType)})</span>`;
+          }
+        }
+    }
+
+    if (subtitle) subtitle.innerHTML = subtitleText;
+
+    if (icon && title) {
+      if (result.isPolarityFlipped) {
+        icon.textContent = '\u26A0\uFE0F';
+        title.textContent = 'Frecuencia Correcta, Ganancia Opuesta!';
+        title.className = 'results-title warning';
+      } else if (result.isCorrect) {
+        icon.textContent = '\u2728';
+        title.textContent = cleanLabel || 'Excelente!';
+        title.className = 'results-title success';
+      } else {
+        icon.textContent = '\u274C';
+        title.textContent = cleanLabel || 'Revision Didactica';
+        title.className = 'results-title failure';
+      }
+    }
+
+    // Evaluate game loop trial outcome
+    this.lastGameOutcome = this.gameLoop ? this.gameLoop.evaluateTrialOutcome(result.scorePercentage, result.pointsAwarded || 0) : null;
+    const gameOutcome = this.lastGameOutcome;
+
+    // Show Level Up / Game Over modals
+    if (gameOutcome) {
+      if (gameOutcome.isLevelUp) {
+        this.showLevelUpModal(gameOutcome);
+      } else if (gameOutcome.isGameOver) {
+        if (gameOutcome.isBossDefeated) {
+          this.showBossDefeatModal(gameOutcome);
+        } else {
+          this.showGameOverModal(gameOutcome);
+        }
+      }
+    }
+
+    // Pro Mode Analysis
+    const proCard = document.getElementById('proAnalysisCard');
+    const proTerminal = document.getElementById('proTerminal');
+    const acousticContextCard = document.getElementById('acousticContextCard');
+    const isProMode = this.trainer.difficulty === 'pro' || this.trainer.difficulty === 'hard';
+
+    if (isProMode && proCard && proTerminal) {
+      const hasAcousticContext = acousticContextCard && !acousticContextCard.classList.contains('hidden');
+
+      if (!hasAcousticContext) {
+        if (resultsSection) resultsSection.classList.add('pro-mode-active');
+        const audioContextStr = this.audio ? (this.audio.currentTrackId || this.audio.currentBufferName || "") : "";
+        const proAnalysis = analyzeProPractices(target, result.bandResults ? result.bandResults[0]?.guess : null, audioContextStr);
+        proTerminal.innerHTML = '';
+        const item = document.createElement('div');
+        item.className = proAnalysis.isWarning ? 'pro-terminal-item' : 'pro-terminal-item pro-terminal-ok';
+        item.textContent = proAnalysis.message;
+        proTerminal.appendChild(item);
+        proCard.classList.remove('hidden');
+      } else {
+        if (resultsSection) resultsSection.classList.remove('pro-mode-active');
+        if (proCard) proCard.classList.add('hidden');
+      }
+    } else {
+      if (resultsSection) resultsSection.classList.remove('pro-mode-active');
+      if (proCard) proCard.classList.add('hidden');
+    }
+  }
