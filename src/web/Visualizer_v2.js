@@ -424,8 +424,15 @@ export class Visualizer {
       ctx.lineTo(x, bottomY);
       ctx.stroke();
 
-      let label = freq >= 1000 ? `${(freq / 1000).toFixed(freq % 1000 === 0 ? 0 : 1)}k` : `${freq}`;
+      let label;
+    if (freq >= 1000) {
       if (freq === 20000) label = '20k';
+      else if (freq === 3150) label = '3.15k';
+      else if (freq === 1250) label = '1.25k';
+      else label = `${freq / 1000}k`;
+    } else {
+      label = `${freq}`;
+    }
 
       // Draw background pill for text
       ctx.fillStyle = 'rgba(11, 12, 16, 0.8)';
