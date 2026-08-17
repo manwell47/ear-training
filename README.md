@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/manwell47/ear-training/main/public/logo.png" alt="Ear Training Logo" width="150"/>
-  <h1>🎵 Ear Training Pro: Advanced Audio Engineering Simulator</h1>
+  <h1>🎵 Ear Training Pro</h1>
+  <h3>Advanced Audio Engineering Simulator</h3>
   <p><strong>A Gamified Parametric Equalization and Mixing Training Platform</strong></p>
   <a href="https://manwell47.github.io/ear-training/"><strong>🔥 PLAY THE DEMO NOW 🔥</strong></a>
 </div>
