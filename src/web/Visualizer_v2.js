@@ -699,39 +699,42 @@ export class Visualizer {
         this.previousY[x] = y;
       }
 
-      if (isSynthetic) {
-        // Para ruido estocástico (blanco/rosa), usar Media Móvil Exponencial (EMA) temporal.
-        // Esto estabiliza la línea en la energía RMS verdadera, mostrando recortes profundos exactos,
-        // en lugar de rastrear los picos del ruido.
-        let emaAlpha = 0.05;
-        this.previousY[x] = (y * emaAlpha) + (this.previousY[x] * (1 - emaAlpha));
-      } else {
-        // Attack (señal sube = Y baja) vs Release (señal baja = Y sube) para música
-        if (y < this.previousY[x]) {
-          // Ataque instantáneo para capturar transitorios rápidos (bombo) a su máxima amplitud real
-          let attackAlpha = 1.0;
-          this.previousY[x] = y * attackAlpha + this.previousY[x] * (1 - attackAlpha);
-        } else {
-          // Release Premium (Caída lineal constante en dB/sec)
-          let releaseDbPerFrame = 1.3; 
-          let releasePixels = (height / 85.0) * releaseDbPerFrame;
-          this.previousY[x] = Math.min(y, this.previousY[x] + releasePixels);
-        }
+      // --- BALÍSTICA Y SUAVIZADO TEMPORAL ---
+      if (this.audioEngine && this.audioEngine.isPlaying) {
+          if (isSynthetic) {
+            // Para ruido estocástico (blanco/rosa), usar Media Móvil Exponencial (EMA) temporal.
+            let emaAlpha = 0.05;
+            this.previousY[x] = (y * emaAlpha) + (this.previousY[x] * (1 - emaAlpha));
+          } else {
+            // Attack (señal sube = Y baja) vs Release (señal baja = Y sube) para música
+            if (y < this.previousY[x]) {
+              // Ataque instantáneo para capturar transitorios rápidos (bombo) a su máxima amplitud real
+              let attackAlpha = 1.0;
+              this.previousY[x] = y * attackAlpha + this.previousY[x] * (1 - attackAlpha);
+            } else {
+              // Release Premium (Caída lineal constante en dB/sec)
+              let releaseDbPerFrame = 1.3; 
+              let releasePixels = (height / 85.0) * releaseDbPerFrame;
+              this.previousY[x] = Math.min(y, this.previousY[x] + releasePixels);
+            }
+          }
       }
 
       y = this.previousY[x];
       pathY[x] = y;
 
       // Peak Hold Logic
-      if (y < this.peakHoldY[x] || this.peakHoldY[x] === 0 || isNaN(this.peakHoldY[x])) {
-        this.peakHoldY[x] = y;
-        this.peakHoldTime[x] = now;
-      } else {
-        // Decay delay 1.2s
-        if (now - this.peakHoldTime[x] > 1200) {
-           this.peakHoldY[x] += 1.5; // Smooth decay
-           if (this.peakHoldY[x] > height) this.peakHoldY[x] = height;
-        }
+      if (this.audioEngine && this.audioEngine.isPlaying) {
+          if (y < this.peakHoldY[x] || this.peakHoldY[x] === 0 || isNaN(this.peakHoldY[x])) {
+            this.peakHoldY[x] = y;
+            this.peakHoldTime[x] = now;
+          } else {
+            // Decay delay 1.2s
+            if (now - this.peakHoldTime[x] > 1200) {
+               this.peakHoldY[x] += 1.5; // Smooth decay
+               if (this.peakHoldY[x] > height) this.peakHoldY[x] = height;
+            }
+          }
       }
     }
 
