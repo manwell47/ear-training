@@ -395,6 +395,10 @@ export class AudioEngine {
     this.currentTrackId = null; // Evitar el fallback fantasma a ruido rosa
     this.currentMultitrackSession = null;
     this.pauseOffset = 0;
+    
+    // Bandera explícita y robusta para informar al Visualizador si la fuente es ruido de laboratorio
+    this.isSyntheticMode = config ? !!config.isSynthetic : false;
+
     this.setSourceCalibration(sourceId);
 
     if (mtSession || (config && config.isMultitrack)) {

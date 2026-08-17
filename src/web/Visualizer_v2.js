@@ -537,10 +537,9 @@ export class Visualizer {
     const CALIBRATION_OFFSET = 45;
 
     const currentAudioSource = this.audioEngine ? (this.audioEngine.currentTrackId || this.audioEngine.currentBufferName || '') : '';
-    const isPinkNoise = (currentAudioSource === 'pink-noise' || currentAudioSource === 'PINK_NOISE' || currentAudioSource === 'pink_noise');
-
-
-
+    
+    // Leer de forma robusta desde AudioEngine si es ruido (ignora el ID del track)
+    const isSynthetic = this.audioEngine ? !!this.audioEngine.isSyntheticMode : false;
     ctx.beginPath();
     let nyquist = sampleRate / 2;
 
@@ -557,8 +556,6 @@ export class Visualizer {
     }
 
     // 1. Calcular el valor pivote (Ancla 0dB)
-    const isSynthetic = isPinkNoise || currentAudioSource.includes('white');
-    
     if (isSynthetic) {
       // Para ruidos de laboratorio: forzar que cruce EXACTAMENTE por 0dB en 1kHz
       let index1kHz = Math.floor((1000 / nyquist) * frequencyData.length);
