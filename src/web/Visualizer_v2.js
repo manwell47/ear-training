@@ -550,7 +550,6 @@ export class Visualizer {
       this.audioEngine.analyser.getFloatFrequencyData(this.fftBuffer);
     }
 
-    const ctx = this.ctx;
     const sampleRate = this.audioEngine.ctx ? this.audioEngine.ctx.sampleRate : 44100;
     const frequencyData = this.fftBuffer;
 
