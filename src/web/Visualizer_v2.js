@@ -1029,9 +1029,21 @@ export class Visualizer {
       return;
     }
 
+    // Comprobar si la fase es completamente plana (EQ bypass o 0 dB)
+    let maxAbsPhase = 0;
+    for (let x = 0; x < numPixels; x++) {
+      if (Math.abs(cumulativePhase[x]) > maxAbsPhase) {
+        maxAbsPhase = Math.abs(cumulativePhase[x]);
+      }
+    }
+    // Si no hay alteración de fase perceptible, ocultar la línea para no ensuciar la interfaz
+    if (maxAbsPhase < 0.01) return;
+
     ctx.save();
     ctx.beginPath();
     ctx.setLineDash([5, 5]);
+
+    const midY = this.height / 2;
 
     let started = false;
     for (let x = 0; x < numPixels; x++) {
@@ -1043,14 +1055,8 @@ export class Visualizer {
 
       const normPhase = phaseRad / Math.PI; // -1.0 to +1.0
 
-      const RTA_TOP_DBFS = 0.0;
-      const RTA_BOTTOM_DBFS = -60.0;
-      const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
-      const eqZeroDbFS = -18.0;
-      const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
-      const zeroDbY = this.height - normEqZero * this.height;
-
-      let y = zeroDbY - normPhase * (this.height * 0.38);
+      // Alinear la curva de fase al centro físico del canvas (midY) donde están sus etiquetas
+      let y = midY - normPhase * (this.height * 0.38);
       y = Math.max(0, Math.min(this.height, y));
 
       if (!started) {
@@ -1071,9 +1077,8 @@ export class Visualizer {
     ctx.font = 'bold 10px "Fira Code", monospace';
     ctx.textAlign = 'right';
 
-    const topY = (this.height / 2) - (this.height * 0.38);
-    const midY = this.height / 2;
-    const botY = (this.height / 2) + (this.height * 0.38);
+    const topY = midY - (this.height * 0.38);
+    const botY = midY + (this.height * 0.38);
 
     ctx.fillText('+π (+180°)', this.width - 12, topY + 12);
     ctx.fillText('0 rad (0°)', this.width - 12, midY - 4);
