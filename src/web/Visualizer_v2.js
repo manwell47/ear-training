@@ -532,10 +532,14 @@ export class Visualizer {
   }
 
   /**
+/**
    * Hybrid RTA Spectrum Renderer with RTA Tilt (+3.0 dB/oct) and Visual Ballistics.
    */
   drawSpectrum() {
     if (!this.audioEngine || !this.audioEngine.analyser) return;
+
+    const ctx = this.ctx;
+    const { RTA_TOP_DBFS, RTA_BOTTOM_DBFS, RTA_RANGE } = this.getRtaBounds();
 
     // Congelar la gráfica exactamente donde estaba al pausar
     if (this.audioEngine.analyser.frequencyBinCount !== this.fftBuffer.length) {
@@ -647,9 +651,6 @@ export class Visualizer {
       val_dB += calOffset;
 
       if (val_dB === -Infinity || Number.isNaN(val_dB)) val_dB = -120.0;
-
-      // Escala global del RTA fija a bounds dinámicos
-      const { RTA_TOP_DBFS, RTA_BOTTOM_DBFS, RTA_RANGE } = this.getRtaBounds();
 
       // Aplicar Tilt opcional (0.0 para White Noise plano, +3.0 para Pink plano)
       if (tiltDbPerOctave !== 0.0) {
