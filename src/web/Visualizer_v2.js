@@ -62,7 +62,7 @@ export class Visualizer {
     this.fftBuffer = new Float32Array(8192).fill(-140.0);
 
     // 1/3 Octave ISO Frequencies bounded strictly between 20 Hz and 20000 Hz
-    this.soundgymFrequencies = [20, 31, 50, 80, 125, 200, 315, 500, 800, 1250, 2000, 3150, 5000, 8000, 12500, 20000];
+    this.soundgymFrequencies = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000];
 
     // Bind mouse / touch handlers for interactive drag & hover
     this.setupInteractivity();
@@ -279,7 +279,7 @@ export class Visualizer {
 
   gainToY(gainDb) {
     const RTA_TOP_DBFS = 0.0;
-    const RTA_BOTTOM_DBFS = -85.0;
+    const RTA_BOTTOM_DBFS = -60.0;
     const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
     const pixelsPerDb = this.height / RTA_RANGE;
     
@@ -292,7 +292,7 @@ export class Visualizer {
 
   yToGain(y) {
     const RTA_TOP_DBFS = 0.0;
-    const RTA_BOTTOM_DBFS = -85.0;
+    const RTA_BOTTOM_DBFS = -60.0;
     const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
     const pixelsPerDb = this.height / RTA_RANGE;
     
@@ -454,76 +454,64 @@ export class Visualizer {
       }
     });
 
-    // 2. Escala global del RTA fija a 0 .. -85 dBFS
+    // 2. Escala global del RTA recortada a 0 .. -60 dBFS (Maximizando resolución visual)
     const RTA_TOP_DBFS = 0.0;
-    const RTA_BOTTOM_DBFS = -85.0;
+    const RTA_BOTTOM_DBFS = -60.0;
     const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
     
     // Coordenada Y exacta para la línea nominal de 0dB del ecualizador (anclada a -18 dBFS)
     const eqZeroDbFS = -18.0;
     const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
-    this.eqZeroY = this.height - normEqZero * this.height; // Guardamos para usar en otras partes
+    this.eqZeroY = this.height - normEqZero * this.height;
 
-    // 2. 0dB Reference Line (anclada matemáticamente a -18 dBFS)
-    ctx.strokeStyle = 'rgba(0, 242, 254, 0.35)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(0, this.eqZeroY);
-    ctx.lineTo(this.width, this.eqZeroY);
-    ctx.stroke();
-
-    const currentAudioSource = this.audioEngine ? (this.audioEngine.currentTrackId || this.audioEngine.currentBufferName || '') : '';
-    const isSynthetic = (currentAudioSource.toLowerCase().includes('pink') || currentAudioSource.toLowerCase().includes('white'));
-
+    // 3. Cuadrícula Horizontal Sincronizada (Grid EQ / RTA)
+    const eqSteps = [18, 12, 6, 0, -6, -12, -18, -24, -30, -36, -42];
     ctx.textAlign = 'left';
-    // Escala estática absoluta
-    const rtaSteps = [0, -10, -20, -30, -40, -50, -60, -70, -80];
-    
-    rtaSteps.forEach(trueDb => {
-      const visualDb = trueDb;
-      
-      const norm = (visualDb - RTA_BOTTOM_DBFS) / RTA_RANGE;
+
+    eqSteps.forEach(eqGain => {
+      // Correspondencia matemática absoluta: 1 dB EQ = 1 dB RTA
+      const rtaDb = eqZeroDbFS + eqGain;
+      if (rtaDb < RTA_BOTTOM_DBFS || rtaDb > RTA_TOP_DBFS) return;
+
+      const norm = (rtaDb - RTA_BOTTOM_DBFS) / RTA_RANGE;
       const y = this.height - norm * this.height;
-      let textYdB = y - 5;
-      if (textYdB > this.height - 15) textYdB = this.height - 15;
-
-      let label = trueDb === 0 ? `0 dBFS` : `${trueDb} dBFS`;
-      ctx.fillStyle = 'rgba(11, 12, 16, 0.85)';
-      let textWidth = ctx.measureText(label).width;
-      let finalY = trueDb === 0 ? y + 12 : textYdB;
       
-      // Dibujar fondo de texto y texto un poco desplazado a la derecha para dar espacio al Master Meter
-      ctx.fillRect(28, finalY - 10, textWidth + 4, 14);
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; 
-      ctx.fillText(label, 30, finalY);
-      
-      // Draw light horizontal grid line
+      // Dibujar línea horizontal maestra
       ctx.beginPath();
-      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-      ctx.moveTo(30, y);
+      ctx.moveTo(0, y);
       ctx.lineTo(this.width, y);
+      if (eqGain === 0) {
+        ctx.strokeStyle = 'rgba(0, 242, 254, 0.4)';
+        ctx.lineWidth = 1.5;
+      } else {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 1;
+      }
       ctx.stroke();
-    });
 
-    // 4. EQ Gain Scale (Right Side)
-    ctx.textAlign = 'right';
-    const eqSteps = [18, 12, 6, 0, -6, -12, -18];
-    eqSteps.forEach(db => {
-      const norm = (db - -18.0) / 36.0; // EQ is -18 to +18, so range is 36
-      const y = this.height - norm * this.height;
-      let label = db > 0 ? `+${db} dB` : `${db} dB`;
-      if (db === 0) label = `0 dB (EQ)`;
-      
+      // Ajuste de colisión vertical para textos
+      let textY = y - 5;
+      if (textY > this.height - 15) textY = this.height - 15;
+      if (textY < 15) textY = 15;
+
+      // Etiquetas RTA (Izquierda)
+      let rtaLabel = rtaDb === 0 ? `0 dBFS` : `${rtaDb} dBFS`;
       ctx.fillStyle = 'rgba(11, 12, 16, 0.85)';
-      let textWidth = ctx.measureText(label).width;
-      ctx.fillRect(this.width - textWidth - 12, y - 10, textWidth + 4, 14);
+      let rtaTextWidth = ctx.measureText(rtaLabel).width;
+      ctx.fillRect(28, textY - 10, rtaTextWidth + 4, 14);
+      ctx.fillStyle = eqGain === 0 ? 'rgba(0, 242, 254, 0.8)' : 'rgba(255, 255, 255, 0.35)';
+      ctx.fillText(rtaLabel, 30, textY);
 
-      ctx.fillStyle = 'rgba(168, 85, 247, 0.8)'; // Purple color to match EQ curve
-      ctx.fillText(label, this.width - 10, y + 4);
+      // Etiquetas EQ (Derecha)
+      let eqLabel = eqGain > 0 ? `+${eqGain} dB` : (eqGain === 0 ? `0 dB (EQ)` : `${eqGain} dB`);
+      ctx.textAlign = 'right';
+      let eqTextWidth = ctx.measureText(eqLabel).width;
+      ctx.fillStyle = 'rgba(11, 12, 16, 0.85)';
+      ctx.fillRect(this.width - 32 - eqTextWidth, textY - 10, eqTextWidth + 4, 14);
+      ctx.fillStyle = eqGain === 0 ? 'rgba(0, 242, 254, 0.8)' : 'rgba(168, 85, 247, 0.8)';
+      ctx.fillText(eqLabel, this.width - 30, textY);
+      ctx.textAlign = 'left'; // Reset
     });
-
-    ctx.textAlign = 'left';
   }
 
   /**
@@ -644,7 +632,7 @@ export class Visualizer {
 
       // Escala global del RTA fija a 0 .. -85 dBFS
       const RTA_TOP_DBFS = 0.0;
-      const RTA_BOTTOM_DBFS = -85.0;
+      const RTA_BOTTOM_DBFS = -60.0;
       const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
 
       // Aplicar Tilt opcional (0.0 para White Noise plano, +3.0 para Pink plano)
@@ -941,7 +929,7 @@ export class Visualizer {
 
     // Relación de píxeles por dB en la escala global del RTA
     const RTA_TOP_DBFS = 0.0;
-    const RTA_BOTTOM_DBFS = -85.0;
+    const RTA_BOTTOM_DBFS = -60.0;
     const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
     const pixelsPerDb = this.height / RTA_RANGE;
 
@@ -1047,7 +1035,7 @@ export class Visualizer {
       const normPhase = phaseRad / Math.PI; // -1.0 to +1.0
 
       const RTA_TOP_DBFS = 0.0;
-      const RTA_BOTTOM_DBFS = -85.0;
+      const RTA_BOTTOM_DBFS = -60.0;
       const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
       const eqZeroDbFS = -18.0;
       const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
