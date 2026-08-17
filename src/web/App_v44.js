@@ -5,7 +5,7 @@
  */
 
 import { AudioEngine } from './AudioEngine.js';
-import { Visualizer } from './Visualizer_v2.js?v=44';
+import { Visualizer } from './Visualizer_v2.js?v=45';
 import { GameLoopManager, GAME_STATES } from './GameLoopManager.js';
 import { AUDIO_SOURCES, MULTITRACK_SESSIONS } from './AudioResourceManager.js';
 import { TrainingManager } from './TrainingManager.js';

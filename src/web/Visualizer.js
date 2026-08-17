@@ -466,10 +466,6 @@ export class Visualizer {
     // 2. 0dB Reference Line
     ctx.strokeStyle = 'rgba(0, 242, 254, 0.35)';
     ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(0, this.height / 2);
-    ctx.lineTo(this.width, this.height / 2);
-    ctx.stroke();
 
     const currentAudioSource = this.audioEngine ? (this.audioEngine.currentTrackId || this.audioEngine.currentBufferName || '') : '';
     const isSynthetic = (currentAudioSource.toLowerCase().includes('pink') || currentAudioSource.toLowerCase().includes('white'));

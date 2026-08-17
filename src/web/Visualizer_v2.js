@@ -277,13 +277,19 @@ export class Visualizer {
     return 20 * Math.pow(1000, normX);
   }
 
+  getRtaBounds() {
+    const eqZeroDbFS = -18.0;
+    const RTA_RANGE = this.rtaRange || 60.0;
+    // Y_pivot para eqZeroDbFS está fijado geométricamente al 30% desde la parte superior del canvas
+    const RTA_TOP_DBFS = eqZeroDbFS + (0.3 * RTA_RANGE);
+    const RTA_BOTTOM_DBFS = RTA_TOP_DBFS - RTA_RANGE;
+    return { RTA_TOP_DBFS, RTA_BOTTOM_DBFS, RTA_RANGE, eqZeroDbFS };
+  }
+
   gainToY(gainDb) {
-    const RTA_TOP_DBFS = 0.0;
-    const RTA_BOTTOM_DBFS = -60.0;
-    const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
+    const { RTA_TOP_DBFS, RTA_BOTTOM_DBFS, RTA_RANGE, eqZeroDbFS } = this.getRtaBounds();
     const pixelsPerDb = this.height / RTA_RANGE;
     
-    const eqZeroDbFS = -18.0;
     const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
     const eqZeroY = this.height - normEqZero * this.height;
 
@@ -291,12 +297,9 @@ export class Visualizer {
   }
 
   yToGain(y) {
-    const RTA_TOP_DBFS = 0.0;
-    const RTA_BOTTOM_DBFS = -60.0;
-    const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
+    const { RTA_TOP_DBFS, RTA_BOTTOM_DBFS, RTA_RANGE, eqZeroDbFS } = this.getRtaBounds();
     const pixelsPerDb = this.height / RTA_RANGE;
     
-    const eqZeroDbFS = -18.0;
     const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
     const eqZeroY = this.height - normEqZero * this.height;
 
@@ -461,18 +464,25 @@ export class Visualizer {
       }
     });
 
-    // 2. Escala global del RTA recortada a 0 .. -60 dBFS (Maximizando resolución visual)
-    const RTA_TOP_DBFS = 0.0;
-    const RTA_BOTTOM_DBFS = -60.0;
-    const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
+    // 2. Escala global del RTA recortada a bounds dinámicos (Maximizando resolución visual y anclaje)
+    const { RTA_TOP_DBFS, RTA_BOTTOM_DBFS, RTA_RANGE, eqZeroDbFS } = this.getRtaBounds();
     
     // Coordenada Y exacta para la línea nominal de 0dB del ecualizador (anclada a -18 dBFS)
-    const eqZeroDbFS = -18.0;
     const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
     this.eqZeroY = this.height - normEqZero * this.height;
 
     // 3. Cuadrícula Horizontal Sincronizada (Grid EQ / RTA)
-    const eqSteps = [18, 12, 6, 0, -6, -12, -18, -24, -30, -36, -42];
+    let stepSize = 6;
+    if (RTA_RANGE <= 40) stepSize = 3;
+
+    const eqSteps = [];
+    const minEq = Math.floor((RTA_BOTTOM_DBFS - eqZeroDbFS) / stepSize) * stepSize;
+    const maxEq = Math.ceil((RTA_TOP_DBFS - eqZeroDbFS) / stepSize) * stepSize;
+    
+    for (let eqGain = maxEq; eqGain >= minEq; eqGain -= stepSize) {
+      eqSteps.push(eqGain);
+    }
+    
     ctx.textAlign = 'left';
 
     eqSteps.forEach(eqGain => {
@@ -491,7 +501,7 @@ export class Visualizer {
         ctx.strokeStyle = 'rgba(0, 242, 254, 0.4)';
         ctx.lineWidth = 1.5;
       } else {
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)'; // Mucho más sutil para que no distraiga
         ctx.lineWidth = 1;
       }
       ctx.stroke();
@@ -638,10 +648,8 @@ export class Visualizer {
 
       if (val_dB === -Infinity || Number.isNaN(val_dB)) val_dB = -120.0;
 
-      // Escala global del RTA fija a 0 .. -85 dBFS
-      const RTA_TOP_DBFS = 0.0;
-      const RTA_BOTTOM_DBFS = -60.0;
-      const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
+      // Escala global del RTA fija a bounds dinámicos
+      const { RTA_TOP_DBFS, RTA_BOTTOM_DBFS, RTA_RANGE } = this.getRtaBounds();
 
       // Aplicar Tilt opcional (0.0 para White Noise plano, +3.0 para Pink plano)
       if (tiltDbPerOctave !== 0.0) {
@@ -842,17 +850,14 @@ export class Visualizer {
     const meterWidth = 8;
     const meterX = 12;
     
-    // Scale 0 to -85 dBFS to match RTA scale exactly
-    const RTA_TOP = 0.0;
-    const RTA_BOTTOM = -85.0;
-    const RTA_RANGE = RTA_TOP - RTA_BOTTOM;
+    const { RTA_TOP_DBFS, RTA_BOTTOM_DBFS, RTA_RANGE, eqZeroDbFS } = this.getRtaBounds();
     
     // Draw background track
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
     ctx.fillRect(meterX, 0, meterWidth, this.height);
     
     // Draw RMS solid bar
-    const normRMS = Math.max(0, (this.masterCurrentDb - RTA_BOTTOM) / RTA_RANGE);
+    const normRMS = Math.max(0, (this.masterCurrentDb - RTA_BOTTOM_DBFS) / RTA_RANGE);
     const rmsY = this.height - (normRMS * this.height);
     
     const grad = ctx.createLinearGradient(0, this.height, 0, 0);
@@ -937,13 +942,10 @@ export class Visualizer {
     }
 
     // Relación de píxeles por dB en la escala global del RTA
-    const RTA_TOP_DBFS = 0.0;
-    const RTA_BOTTOM_DBFS = -60.0;
-    const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
+    const { RTA_TOP_DBFS, RTA_BOTTOM_DBFS, RTA_RANGE, eqZeroDbFS } = this.getRtaBounds();
     const pixelsPerDb = this.height / RTA_RANGE;
 
     // 3. Coordenada Y de la línea nominal de 0dB (calculada para -18 dBFS)
-    const eqZeroDbFS = -18.0;
     const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
     const zeroDbY = this.height - normEqZero * this.height;
 
@@ -996,6 +998,7 @@ export class Visualizer {
    * Acepta un array de filtros y extrae su cumulative phaseResponse.
    */
   drawPhaseCurve(filters, strokeColor = '#ec4899') {
+    return true;
     if (!filters || !Array.isArray(filters) || filters.length === 0 || !this.audioEngine.ctx) return;
 
     const ctx = this.ctx;
