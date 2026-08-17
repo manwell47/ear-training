@@ -629,11 +629,12 @@ export class Visualizer {
           val_dB = (count > 0) ? 10 * Math.log10(sum / count) : -120;
       }
       
-      // --- 2. OFFSET DE CALIBRACIÓN FFT (CERO INVENTOS) ---
-      // El usuario indicó que su Ruido Blanco está calibrado a -18 dBFS.
-      // Observamos empíricamente que con 55.3 quedaba en -30 dBFS (-12 dB de diferencia).
-      // Por tanto, el offset final exacto es 67.3 dB.
-      val_dB += 67.3;
+      // --- 2. OFFSET DE CALIBRACIÓN FFT BIFURCADO ---
+      // El usuario solicitó separar la lógica matemática para ruidos y audios reales.
+      // - Ruido Blanco Sintético: 61.3 dB exactos para promediar en la línea de -18 dBFS.
+      // - Audios (Multitrack): ~40.0 dB (o 43.3) para que los transitorios se ubiquen en rango dinámico utilizable.
+      const calOffset = isSynthetic ? 61.3 : 40.0;
+      val_dB += calOffset;
 
       if (val_dB === -Infinity || Number.isNaN(val_dB)) val_dB = -120.0;
 
@@ -685,8 +686,9 @@ export class Visualizer {
       // --- BALÍSTICA Y SUAVIZADO TEMPORAL ---
       if (this.audioEngine && this.audioEngine.isPlaying) {
         if (isSynthetic) {
-          // Para ruido estocástico (blanco/rosa), usar Media Móvil Exponencial (EMA) temporal.
-          let emaAlpha = 0.05;
+          // Para ruido estocástico (blanco/rosa), usar Media Móvil Exponencial (EMA) muy lenta
+          // para simular la integración a largo plazo de un RTA profesional.
+          let emaAlpha = 0.03;
           this.previousY[x] = (y * emaAlpha) + (this.previousY[x] * (1 - emaAlpha));
         } else {
           // Attack (señal sube = Y baja) vs Release (señal baja = Y sube) para música
@@ -697,7 +699,7 @@ export class Visualizer {
           } else {
             // Release Premium (Caída lineal constante en dB/sec)
             let releaseDbPerFrame = 1.3; 
-            let releasePixels = (height / 85.0) * releaseDbPerFrame;
+            let releasePixels = (height / RTA_RANGE) * releaseDbPerFrame;
             this.previousY[x] = Math.min(y, this.previousY[x] + releasePixels);
           }
         }
