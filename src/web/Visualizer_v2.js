@@ -596,7 +596,7 @@ export class Visualizer {
       let val_dB = -100;
 
       if (idxRight <= idxLeft + 1) {
-        // Pixel es más estrecho que un bin: Interpolación Lineal estricta
+        // Pixel es más estrecho que un bin: Interpolación Lineal
         let exactIndex = (freqCenter / nyquist) * frequencyData.length;
         let idx1 = Math.floor(exactIndex);
         let idx2 = Math.min(idx1 + 1, frequencyData.length - 1);
@@ -605,29 +605,16 @@ export class Visualizer {
         let v2 = isFinite(frequencyData[idx2]) ? frequencyData[idx2] : -120;
         val_dB = v1 + fraction * (v2 - v1);
       } else {
-        if (isSynthetic) {
-            // Pixel abarca varios bins: Suma RMS (promedio de energía) para ruido sintético (Mantiene el ruido rosa/blanco plano/estable)
-            let sum = 0;
-            let count = 0;
-            for (let i = idxLeft; i <= idxRight; i++) {
-                let v = frequencyData[i];
-                if (isFinite(v) && v > -120) {
-                    sum += Math.pow(10, v / 10);
-                    count++;
-                }
+        // Pixel abarca varios bins: Sumar la energía total de la banda (Integración Acústica Real)
+        // Esto levanta naturalmente las altas frecuencias (Hi-Hat) porque agrupan más bins, sin usar Tilts artificiales.
+        let sum = 0;
+        for (let i = idxLeft; i <= idxRight; i++) {
+            let v = frequencyData[i];
+            if (isFinite(v) && v > -120) {
+                sum += Math.pow(10, v / 10);
             }
-            val_dB = (count > 0) ? 10 * Math.log10(sum / count) : -120;
-        } else {
-            // Pixel abarca varios bins: Tomar la Amplitud Máxima (Peak) para archivos de audio (Captura la verdadera energía del pico)
-            let max_v = -120;
-            for (let i = idxLeft; i <= idxRight; i++) {
-                let v = frequencyData[i];
-                if (isFinite(v) && v > max_v) {
-                    max_v = v;
-                }
-            }
-            val_dB = max_v;
         }
+        val_dB = (sum > 0) ? 10 * Math.log10(sum) : -120;
       }
 
       if (val_dB === -Infinity || Number.isNaN(val_dB)) val_dB = -120.0;
