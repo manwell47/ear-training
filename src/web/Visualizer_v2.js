@@ -631,9 +631,9 @@ export class Visualizer {
       
       // --- 2. OFFSET DE CALIBRACIÓN FFT (CERO INVENTOS) ---
       // El usuario indicó que su Ruido Blanco está calibrado a -18 dBFS.
-      // Densidad matemática del bin de ruido blanco = -57.3 dBFS.
-      // Offset exacto para que dibuje en -18 dBFS: 57.3 - 18.0 = +39.3 dB.
-      val_dB += 39.3;
+      // Observamos empíricamente que con 39.3 quedaba en -34 dBFS (-16 dB de diferencia).
+      // Por tanto, el offset correcto para la ventana actual del motor es 55.3 dB.
+      val_dB += 55.3;
 
       if (val_dB === -Infinity || Number.isNaN(val_dB)) val_dB = -120.0;
 
