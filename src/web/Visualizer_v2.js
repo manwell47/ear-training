@@ -570,7 +570,6 @@ export class Visualizer {
     }
 
     // Referencias de la Rejilla
-    // Tilt de visualización opcional (+3dB/oct para Pink, 0.0 para White)
     const tiltDbPerOctave = 0.0; 
 
     // Pre-calculate Y path to draw fill, trace and peak hold separatedly
@@ -606,17 +605,15 @@ export class Visualizer {
         let v2 = isFinite(frequencyData[idx2]) ? frequencyData[idx2] : -120;
         val_dB = v1 + fraction * (v2 - v1);
       } else {
-        // Pixel abarca varios bins: Suma RMS (promedio de energía) del pixel
-        let sum = 0;
-        let count = 0;
+        // Pixel abarca varios bins: Tomar la Amplitud Máxima (Peak) para que la gráfica refleje la verdadera energía del pico
+        let max_v = -120;
         for (let i = idxLeft; i <= idxRight; i++) {
             let v = frequencyData[i];
-            if (isFinite(v) && v > -120) {
-                sum += Math.pow(10, v / 10);
-                count++;
+            if (isFinite(v) && v > max_v) {
+                max_v = v;
             }
         }
-        val_dB = (count > 0) ? 10 * Math.log10(sum / count) : -120;
+        val_dB = max_v;
       }
 
       if (val_dB === -Infinity || Number.isNaN(val_dB)) val_dB = -120.0;
@@ -679,8 +676,8 @@ export class Visualizer {
       } else {
         // Attack (señal sube = Y baja) vs Release (señal baja = Y sube) para música
         if (y < this.previousY[x]) {
-          // Ataque rápido pero sin clics visuales
-          let attackAlpha = 0.65;
+          // Ataque instantáneo para capturar transitorios rápidos (bombo) a su máxima amplitud real
+          let attackAlpha = 1.0;
           this.previousY[x] = y * attackAlpha + this.previousY[x] * (1 - attackAlpha);
         } else {
           // Release Premium (Caída lineal constante en dB/sec)

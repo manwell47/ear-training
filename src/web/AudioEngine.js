@@ -119,8 +119,8 @@ export class AudioEngine {
     if (sourceId === 'white_noise' || sourceId === 'pink_noise' || sourceId === 'white-noise' || sourceId === 'pink-noise' || sourceId === 'WHITE_NOISE' || sourceId === 'PINK_NOISE') {
         this.inputGainNode.gain.setValueAtTime(1.0, this.ctx.currentTime); // Referencia base para ruidos sintéticos
     } else {
-        // Los audios reales de sesión (OGGs) se normalizan a su nivel nominal de mezcla
-        this.inputGainNode.gain.setValueAtTime(1.5, this.ctx.currentTime); // Ajustable según el RMS real de tus stems
+        // Los audios reales de sesión (OGGs) se miden a su nivel nominal absoluto
+        this.inputGainNode.gain.setValueAtTime(1.0, this.ctx.currentTime);
     }
   }
 
