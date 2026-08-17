@@ -277,10 +277,6 @@ export class Visualizer {
     return 20 * Math.pow(1000, normX);
   }
 
-  // Factor de ampliación visual para la curva EQ (2.5x más resolución)
-  // Permite ver ajustes quirúrgicos de 1.5 dB como si fuesen de 3.75 dB en pantalla.
-  EQ_MAGNIFICATION = 2.5;
-
   gainToY(gainDb) {
     const RTA_TOP_DBFS = 0.0;
     const RTA_BOTTOM_DBFS = -60.0;
@@ -291,7 +287,7 @@ export class Visualizer {
     const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
     const eqZeroY = this.height - normEqZero * this.height;
 
-    return eqZeroY - (gainDb * pixelsPerDb * this.EQ_MAGNIFICATION);
+    return eqZeroY - (gainDb * pixelsPerDb);
   }
 
   yToGain(y) {
@@ -304,7 +300,7 @@ export class Visualizer {
     const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
     const eqZeroY = this.height - normEqZero * this.height;
 
-    return (eqZeroY - y) / (pixelsPerDb * this.EQ_MAGNIFICATION);
+    return (eqZeroY - y) / pixelsPerDb;
   }
 
   freqGainToPixel(freq, gain) {
@@ -475,11 +471,15 @@ export class Visualizer {
     const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
     this.eqZeroY = this.height - normEqZero * this.height;
 
-    // 3. Cuadrícula Horizontal RTA
-    const rtaSteps = [0, -6, -12, -18, -24, -30, -36, -42, -48, -54, -60];
+    // 3. Cuadrícula Horizontal Sincronizada (Grid EQ / RTA)
+    const eqSteps = [18, 12, 6, 0, -6, -12, -18, -24, -30, -36, -42];
     ctx.textAlign = 'left';
 
-    rtaSteps.forEach(rtaDb => {
+    eqSteps.forEach(eqGain => {
+      // Correspondencia matemática absoluta: 1 dB EQ = 1 dB RTA
+      const rtaDb = eqZeroDbFS + eqGain;
+      if (rtaDb < RTA_BOTTOM_DBFS || rtaDb > RTA_TOP_DBFS) return;
+
       const norm = (rtaDb - RTA_BOTTOM_DBFS) / RTA_RANGE;
       const y = this.height - norm * this.height;
       
@@ -487,7 +487,7 @@ export class Visualizer {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(this.width, y);
-      if (rtaDb === -18) { // eqZeroDbFS
+      if (eqGain === 0) {
         ctx.strokeStyle = 'rgba(0, 242, 254, 0.4)';
         ctx.lineWidth = 1.5;
       } else {
@@ -506,23 +506,10 @@ export class Visualizer {
       ctx.fillStyle = 'rgba(11, 12, 16, 0.85)';
       let rtaTextWidth = ctx.measureText(rtaLabel).width;
       ctx.fillRect(28, textY - 10, rtaTextWidth + 4, 14);
-      ctx.fillStyle = rtaDb === -18 ? 'rgba(0, 242, 254, 0.8)' : 'rgba(255, 255, 255, 0.35)';
+      ctx.fillStyle = eqGain === 0 ? 'rgba(0, 242, 254, 0.8)' : 'rgba(255, 255, 255, 0.35)';
       ctx.fillText(rtaLabel, 30, textY);
-    });
 
-    // 4. Etiquetas EQ Desacopladas (Magnificadas x2.5 en la Derecha)
-    const eqSteps = [15, 12, 9, 6, 3, 0, -3, -6, -9, -12, -15];
-    const pixelsPerDb = this.height / RTA_RANGE;
-
-    eqSteps.forEach(eqGain => {
-      // Y position is relative to eqZeroY (-18 dBFS line) magnified by EQ_MAGNIFICATION
-      const y = this.eqZeroY - (eqGain * pixelsPerDb * this.EQ_MAGNIFICATION);
-      
-      // Si la etiqueta sale del canvas, no la dibujamos
-      if (y < 5 || y > this.height - 5) return;
-
-      let textY = y - 5;
-      
+      // Etiquetas EQ (Derecha)
       let eqLabel = eqGain > 0 ? `+${eqGain} dB` : (eqGain === 0 ? `0 dB (EQ)` : `${eqGain} dB`);
       ctx.textAlign = 'right';
       let eqTextWidth = ctx.measureText(eqLabel).width;
@@ -530,8 +517,8 @@ export class Visualizer {
       ctx.fillRect(this.width - 32 - eqTextWidth, textY - 10, eqTextWidth + 4, 14);
       ctx.fillStyle = eqGain === 0 ? 'rgba(0, 242, 254, 0.8)' : 'rgba(168, 85, 247, 0.8)';
       ctx.fillText(eqLabel, this.width - 30, textY);
+      ctx.textAlign = 'left'; // Reset
     });
-    ctx.textAlign = 'left'; // Reset
   }
 
   /**
@@ -959,6 +946,7 @@ export class Visualizer {
     const eqZeroDbFS = -18.0;
     const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
     const zeroDbY = this.height - normEqZero * this.height;
+
     // 4. Polígono que nace de la línea de 0dB, sigue los puntos calculados y vuelve a 0dB
     ctx.beginPath();
     ctx.moveTo(0, zeroDbY);
@@ -967,8 +955,8 @@ export class Visualizer {
       const mag = Math.max(1e-5, magResponse[x]);
       const dB = 20 * Math.log10(mag);
       
-      // La coordenada Y final se desplaza desde eqZeroY según la ganancia del filtro, los pixels por dB y la magnificación
-      let y = zeroDbY - (dB * pixelsPerDb * this.EQ_MAGNIFICATION);
+      // La coordenada Y final se desplaza desde eqZeroY según la ganancia del filtro y los pixels por dB
+      let y = zeroDbY - (dB * pixelsPerDb);
       y = Math.max(0, Math.min(this.height, y));
       ctx.lineTo(x, y);
     }
