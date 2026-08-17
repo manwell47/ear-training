@@ -515,12 +515,16 @@ export class Visualizer {
   drawSpectrum() {
     if (!this.audioEngine || !this.audioEngine.analyser) return;
 
-    // Actualiza el buffer FFT cuando está reproduciendo; congela la imagen en pausa
+    // Actualiza el buffer FFT cuando está reproduciendo; si está en pausa, inyecta silencio absoluto
+    // para forzar un decaimiento visual suave hacia abajo (evita el efecto 'congelado dentado').
+    if (this.audioEngine.analyser.frequencyBinCount !== this.fftBuffer.length) {
+      this.fftBuffer = new Float32Array(this.audioEngine.analyser.frequencyBinCount).fill(-140.0);
+    }
+    
     if (this.audioEngine.isPlaying) {
-      if (this.audioEngine.analyser.frequencyBinCount !== this.fftBuffer.length) {
-        this.fftBuffer = new Float32Array(this.audioEngine.analyser.frequencyBinCount).fill(-140.0);
-      }
       this.audioEngine.analyser.getFloatFrequencyData(this.fftBuffer);
+    } else {
+      this.fftBuffer.fill(-140.0);
     }
 
     const ctx = this.ctx;
@@ -700,42 +704,62 @@ export class Visualizer {
       }
 
       // --- BALÍSTICA Y SUAVIZADO TEMPORAL ---
-      if (this.audioEngine && this.audioEngine.isPlaying) {
-          if (isSynthetic) {
-            // Para ruido estocástico (blanco/rosa), usar Media Móvil Exponencial (EMA) temporal.
-            let emaAlpha = 0.05;
-            this.previousY[x] = (y * emaAlpha) + (this.previousY[x] * (1 - emaAlpha));
-          } else {
-            // Attack (señal sube = Y baja) vs Release (señal baja = Y sube) para música
-            if (y < this.previousY[x]) {
-              // Ataque instantáneo para capturar transitorios rápidos (bombo) a su máxima amplitud real
-              let attackAlpha = 1.0;
-              this.previousY[x] = y * attackAlpha + this.previousY[x] * (1 - attackAlpha);
-            } else {
-              // Release Premium (Caída lineal constante en dB/sec)
-              let releaseDbPerFrame = 1.3; 
-              let releasePixels = (height / 85.0) * releaseDbPerFrame;
-              this.previousY[x] = Math.min(y, this.previousY[x] + releasePixels);
-            }
-          }
+      if (isSynthetic) {
+        // Para ruido estocástico (blanco/rosa), usar Media Móvil Exponencial (EMA) temporal.
+        let emaAlpha = 0.05;
+        this.previousY[x] = (y * emaAlpha) + (this.previousY[x] * (1 - emaAlpha));
+      } else {
+        // Attack (señal sube = Y baja) vs Release (señal baja = Y sube) para música
+        if (y < this.previousY[x]) {
+          // Ataque instantáneo para capturar transitorios rápidos (bombo) a su máxima amplitud real
+          let attackAlpha = 1.0;
+          this.previousY[x] = y * attackAlpha + this.previousY[x] * (1 - attackAlpha);
+        } else {
+          // Release Premium (Caída lineal constante en dB/sec)
+          let releaseDbPerFrame = 1.3; 
+          let releasePixels = (height / 85.0) * releaseDbPerFrame;
+          this.previousY[x] = Math.min(y, this.previousY[x] + releasePixels);
+        }
       }
 
       y = this.previousY[x];
       pathY[x] = y;
 
       // Peak Hold Logic
-      if (this.audioEngine && this.audioEngine.isPlaying) {
-          if (y < this.peakHoldY[x] || this.peakHoldY[x] === 0 || isNaN(this.peakHoldY[x])) {
-            this.peakHoldY[x] = y;
-            this.peakHoldTime[x] = now;
-          } else {
-            // Decay delay 1.2s
-            if (now - this.peakHoldTime[x] > 1200) {
-               this.peakHoldY[x] += 1.5; // Smooth decay
-               if (this.peakHoldY[x] > height) this.peakHoldY[x] = height;
-            }
-          }
+      if (y < this.peakHoldY[x] || this.peakHoldY[x] === 0 || isNaN(this.peakHoldY[x])) {
+        this.peakHoldY[x] = y;
+        this.peakHoldTime[x] = now;
+      } else {
+        // Decay delay 1.2s
+        if (now - this.peakHoldTime[x] > 1200) {
+           this.peakHoldY[x] += 1.5; // Smooth decay
+           if (this.peakHoldY[x] > height) this.peakHoldY[x] = height;
+        }
       }
+    }
+
+    // --- SUAVIZADO ESPACIAL PREMIUM (SOLO PARA RUIDO) ---
+    // Elimina la apariencia "serrada" o de "picos" debida a la interpolación lineal 
+    // de escasos bins del FFT en frecuencias sub-graves.
+    if (isSynthetic) {
+        let spatialSmoothY = new Float32Array(width);
+        // Ventana de suavizado espacial de 1/12 de octava visual (aprox 12 píxeles)
+        let windowSize = Math.max(2, Math.floor(width * 0.0075)); 
+        for (let x = 0; x < width; x++) {
+            let sum = 0;
+            let count = 0;
+            for (let w = -windowSize; w <= windowSize; w++) {
+                let idx = x + w;
+                if (idx >= 0 && idx < width) {
+                    sum += pathY[idx];
+                    count++;
+                }
+            }
+            spatialSmoothY[x] = sum / count;
+        }
+        for (let x = 0; x < width; x++) {
+            pathY[x] = spatialSmoothY[x];
+        }
     }
 
     // 1. Draw Peak Hold Trace (Back Layer) - Only for acoustic material to avoid clutter
