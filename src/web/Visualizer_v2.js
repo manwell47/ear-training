@@ -919,10 +919,6 @@ export class Visualizer {
     if (!filterNode || !this.audioEngine.ctx) return;
 
     const ctx = this.ctx;
-    const MAX_DB = 18;
-    const MIN_DB = -18;
-    const RANGE_DB = MAX_DB - MIN_DB;
-    const CALIBRATION_OFFSET = 0; // Direct relative dB offset to 0dB center line
 
     const numPixels = Math.ceil(this.width);
     const freqArray = new Float32Array(numPixels);
@@ -977,7 +973,8 @@ export class Visualizer {
     for (let x = 0; x < numPixels; x++) {
       const mag = Math.max(1e-5, magResponse[x]);
       const dB = 20 * Math.log10(mag);
-      let y = this.height - ((dB + CALIBRATION_OFFSET - MIN_DB) / RANGE_DB) * this.height;
+      // Usamos exactamente el mismo cálculo Y que para el relleno
+      let y = zeroDbY - (dB * pixelsPerDb);
       y = Math.max(0, Math.min(this.height, y));
 
       if (!started) {
