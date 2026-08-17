@@ -595,35 +595,66 @@ export class Visualizer {
 
       let val_dB = -100;
 
-      if (idxRight <= idxLeft + 1) {
-        // Pixel es más estrecho que un bin: Interpolación Lineal
-        let exactIndex = (freqCenter / nyquist) * frequencyData.length;
-        let idx1 = Math.floor(exactIndex);
-        let idx2 = Math.min(idx1 + 1, frequencyData.length - 1);
-        let fraction = exactIndex - idx1;
-        let v1 = isFinite(frequencyData[idx1]) ? frequencyData[idx1] : -120;
-        let v2 = isFinite(frequencyData[idx2]) ? frequencyData[idx2] : -120;
-        val_dB = v1 + fraction * (v2 - v1);
+      if (isSynthetic) {
+        // --- COMPORTAMIENTO ORIGINAL LEGACY PARA RUIDO SINTÉTICO ("Déjalos como antes") ---
+        if (idxRight <= idxLeft + 1) {
+            let exactIndex = (freqCenter / nyquist) * frequencyData.length;
+            let idx1 = Math.floor(exactIndex);
+            let idx2 = Math.min(idx1 + 1, frequencyData.length - 1);
+            let fraction = exactIndex - idx1;
+            let v1 = isFinite(frequencyData[idx1]) ? frequencyData[idx1] : -120;
+            let v2 = isFinite(frequencyData[idx2]) ? frequencyData[idx2] : -120;
+            val_dB = v1 + fraction * (v2 - v1);
+        } else {
+            let sum = 0;
+            let count = 0;
+            for (let i = idxLeft; i <= idxRight; i++) {
+                let v = frequencyData[i];
+                if (isFinite(v) && v > -120) {
+                    sum += Math.pow(10, v / 10);
+                    count++;
+                }
+            }
+            val_dB = (count > 0) ? 10 * Math.log10(sum / count) : -120;
+        }
+        // Compensación de dispersión original
+        val_dB += 33.1; 
       } else {
-        // Pixel abarca varios bins: Sumar la energía total de la banda (Integración Acústica Real)
-        // Esto levanta naturalmente las altas frecuencias (Hi-Hat) porque agrupan más bins, sin usar Tilts artificiales.
+        // --- COMPORTAMIENTO DE ALTA PRECISIÓN PARA MÚSICA/STEMS ---
+        // Calcula la energía fraccional real de la banda para levantar el hi-hat (agudos dispersos)
+        // y toma el Peak absoluto para proteger la amplitud máxima del bombo (graves concentrados).
+        let exactLeft = (freqLeft / nyquist) * frequencyData.length;
+        let exactRight = (freqRight / nyquist) * frequencyData.length;
+        
         let sum = 0;
-        for (let i = idxLeft; i <= idxRight; i++) {
-            let v = frequencyData[i];
-            if (isFinite(v) && v > -120) {
-                sum += Math.pow(10, v / 10);
+        let peak = -120;
+        
+        for (let i = Math.floor(exactLeft); i <= Math.ceil(exactRight); i++) {
+            if (i >= 0 && i < frequencyData.length) {
+                let v = frequencyData[i];
+                if (isFinite(v) && v > -120) {
+                    let overlapStart = Math.max(exactLeft, i);
+                    let overlapEnd = Math.min(exactRight, i + 1);
+                    let overlap = Math.max(0, overlapEnd - overlapStart);
+                    
+                    if (overlap > 0) {
+                        sum += overlap * Math.pow(10, v / 10);
+                        if (v > peak) peak = v;
+                    }
+                }
             }
         }
-        val_dB = (sum > 0) ? 10 * Math.log10(sum) : -120;
+        
+        let band_energy_dB = (sum > 0) ? 10 * Math.log10(sum) : -120;
+        
+        // El híbrido mágico: Garantiza que un transitorio rápido muestre su pico máximo real, 
+        // pero permite que los agudos se sumen para volverse visibles. No requiere offset ni tilt.
+        val_dB = Math.max(peak, band_energy_dB);
       }
 
       if (val_dB === -Infinity || Number.isNaN(val_dB)) val_dB = -120.0;
 
-      // Fixed Calibration (replaces crazy dancing dynamic offset)
-      // FFT Dispersion Compensation removed: WebAudio getFloatFrequencyData is already normalized.
-      // val_dB += 33.1; // Eliminado para que el nivel coincida con la escala dBFS real
-
-      // Mapeo unificado y fiel a dBFS real (para todo tipo de fuentes)
+      // Mapeo unificado y fiel a dBFS real
       const RTA_TOP_DBFS = 0.0;
       const RTA_BOTTOM_DBFS = -85.0;
       const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
