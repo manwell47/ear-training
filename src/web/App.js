@@ -807,6 +807,11 @@ export class App {
     title.textContent = mtSession.name || 'Multitrack Session';
     tracksContainer.innerHTML = '';
 
+    if (this.stemVuMeters) {
+       this.stemVuMeters.forEach(m => m.stop());
+    }
+    this.stemVuMeters = [];
+
     mtSession.stems.forEach((stem) => {
       const trackDiv = document.createElement('div');
       trackDiv.className = 'stem-track flex flex-col gap-2 p-2 bg-slate-800 rounded';
@@ -829,107 +834,85 @@ export class App {
       soloBtn.className = `btn btn-sm btn-solo ${isInitiallySolo ? 'active' : ''}`;
       soloBtn.textContent = 'S';
 
-      muteBtn.addEventListener('click', () => {
+      muteBtn.onclick = () => {
         this.audio.setStemState(stem.id, 'mute');
-        const isMuted = this.audio.stemStates[stem.id].muted;
-        muteBtn.className = `btn btn-sm btn-mute ${isMuted ? 'active' : ''}`;
-        const isSolo = this.audio.stemStates[stem.id].solo;
-        soloBtn.className = `btn btn-sm btn-solo ${isSolo ? 'active' : ''}`;
-      });
-      controlsRow.appendChild(muteBtn);
-
-      soloBtn.addEventListener('click', () => {
+        muteBtn.classList.toggle('active', this.audio.stemStates[stem.id].muted);
+        if (this.audio.stemStates[stem.id].muted) soloBtn.classList.remove('active');
+      };
+      
+      soloBtn.onclick = () => {
         this.audio.setStemState(stem.id, 'solo');
-        const isSolo = this.audio.stemStates[stem.id].solo;
-        soloBtn.className = `btn btn-sm btn-solo ${isSolo ? 'active' : ''}`;
-        const isMuted = this.audio.stemStates[stem.id].muted;
-        muteBtn.className = `btn btn-sm btn-mute ${isMuted ? 'active' : ''}`;
-      });
-      controlsRow.appendChild(soloBtn);
-
+        soloBtn.classList.toggle('active', this.audio.stemStates[stem.id].solo);
+        if (this.audio.stemStates[stem.id].solo) muteBtn.classList.remove('active');
+      };
+      
+      const stemControls = document.createElement('div');
+      stemControls.className = 'stem-controls';
+      stemControls.appendChild(muteBtn);
+      stemControls.appendChild(soloBtn);
+      
+      controlsRow.appendChild(stemControls);
+      
+      const faderContainer = document.createElement('div');
+      faderContainer.className = 'stem-fader-container';
+      faderContainer.style.position = 'relative';
+      faderContainer.style.height = '14px';
+      faderContainer.style.display = 'flex';
+      faderContainer.style.alignItems = 'center';
+      faderContainer.style.borderRadius = '3px';
+      faderContainer.style.overflow = 'hidden';
+      faderContainer.style.background = '#0b0c10';
+      faderContainer.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.8)';
+      faderContainer.style.padding = '0';
+      faderContainer.style.width = '100%';
+      
+      const canvas = document.createElement('canvas');
+      canvas.id = 'vuMeter-' + stem.id;
+      canvas.width = 150;
+      canvas.height = 14;
+      canvas.style.position = 'absolute';
+      canvas.style.top = '0';
+      canvas.style.left = '0';
+      canvas.style.width = '100%';
+      canvas.style.pointerEvents = 'none';
+      faderContainer.appendChild(canvas);
+      
       const volSlider = document.createElement('input');
       volSlider.type = 'range';
+      volSlider.className = 'fader-fused';
       volSlider.min = '0';
       volSlider.max = '1';
       volSlider.step = '0.01';
-      volSlider.value = (this.audio.stemStates && this.audio.stemStates[stem.id] && this.audio.stemStates[stem.id].volume !== undefined) ? this.audio.stemStates[stem.id].volume : '1';
-      volSlider.className = 'flex-1';
-      volSlider.addEventListener('input', (e) => {
-        const vol = parseFloat(e.target.value);
-        this.audio.setStemVolume(stem.id, vol);
-      });
-      controlsRow.appendChild(volSlider);
+      const initialVol = this.audio.stemStates && this.audio.stemStates[stem.id] && this.audio.stemStates[stem.id].volume !== undefined ? this.audio.stemStates[stem.id].volume : '1.0';
+      volSlider.value = initialVol;
+      volSlider.style.width = '100%';
+      volSlider.style.height = '100%';
+      volSlider.style.margin = '0';
+      volSlider.style.position = 'relative';
+      volSlider.style.zIndex = '10';
+      volSlider.style.opacity = '1';
 
+      volSlider.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        this.audio.setStemVolume(stem.id, val);
+      };
+
+      faderContainer.appendChild(volSlider);
+      controlsRow.appendChild(faderContainer);
       trackDiv.appendChild(controlsRow);
       tracksContainer.appendChild(trackDiv);
     });
+    
+    setTimeout(() => {
+       mtSession.stems.forEach(stem => {
+           if (this.audio.stemAnalysers && this.audio.stemAnalysers[stem.id]) {
+               const vu = new VUMeter(`vuMeter-${stem.id}`, this.audio.stemAnalysers[stem.id]);
+               this.stemVuMeters.push(vu);
+               if (this.audio.isPlaying) vu.start();
+           }
+       });
+    }, 50);
   }
-
-  updateValidationState() {
-    const hintText = document.getElementById('auditionHintText');
-    const hintBar = document.getElementById('auditionStatusHint');
-    const submitBtn = document.getElementById('submitGuessBtn');
-
-    const isModeEasy = this.trainer.difficulty === 'easy';
-    const isValid = isModeEasy ? true : this.hasInteracted;
-
-    if (hintBar && hintText) {
-      if (!isModeEasy && !this.hasInteracted) {
-        hintText.textContent = 'Ajusta los controles o arrastra el punto para proponer tu respuesta.';
-        hintBar.classList.remove('ready');
-      } else {
-        hintText.textContent = '¡Listo! Puedes enviar tu respuesta.';
-        hintBar.classList.add('ready');
-      }
-    }
-
-    if (submitBtn) {
-      submitBtn.disabled = !isValid;
-      if (isValid) {
-        submitBtn.classList.remove('btn-disabled');
-      } else {
-        submitBtn.classList.add('btn-disabled');
-      }
-    }
-
-    if (isModeEasy) {
-      document.querySelectorAll('.btn-select-guess').forEach(btn => {
-          btn.disabled = false;
-          btn.classList.remove('btn-disabled');
-      });
-    }
-  }
-
-  updateABButtons(activeRoute) {
-    const btnA = document.getElementById('btnRouteA');
-    const btnB = document.getElementById('btnRouteB');
-    const btnC = document.getElementById('btnRouteC');
-    const pTarget = document.getElementById('pBtnListenTarget');
-    const pGuess = document.getElementById('pBtnListenGuess');
-    const pFlat = document.getElementById('pBtnListenFlat');
-
-    [btnA, btnB, btnC].forEach(btn => {
-      if (btn) btn.classList.remove('active-off', 'active-on', 'active-guess', 'active-audition');
-    });
-
-    [pTarget, pGuess, pFlat].forEach(btn => {
-      if (btn) btn.classList.remove('active');
-    });
-
-    if (activeRoute === 'A') {
-      if (btnA) btnA.classList.add('active-off');
-      if (pFlat) pFlat.classList.add('active');
-    } else if (activeRoute === 'B') {
-      if (btnB) btnB.classList.add('active-on');
-      if (pTarget) pTarget.classList.add('active');
-    } else if (activeRoute === 'C') {
-      if (btnC) btnC.classList.add('active-guess');
-      if (pGuess) pGuess.classList.add('active');
-    } else if (activeRoute === 'AUDITION' && btnB) {
-      if (btnB) btnB.classList.add('active-on');
-    }
-  }
-
 
   renderHUD(store = this.gameLoop ? this.gameLoop.store : null) {
     if (!store) return;
