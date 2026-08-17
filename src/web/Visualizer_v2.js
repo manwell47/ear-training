@@ -558,10 +558,18 @@ export class Visualizer {
     const RANGE_DB = MAX_DB - MIN_DB;
     const CALIBRATION_OFFSET = 45;
 
-    const currentAudioSource = this.audioEngine ? (this.audioEngine.currentTrackId || this.audioEngine.currentBufferName || '') : '';
-    
-    // Leer de forma robusta desde AudioEngine si es ruido (ignora el ID del track)
     const isSynthetic = this.audioEngine ? !!this.audioEngine.isSyntheticMode : false;
+    const currentAudioSource = this.audioEngine ? (this.audioEngine.currentTrackId || this.audioEngine.currentBufferName || '') : '';
+    const isWhiteNoise = currentAudioSource.toLowerCase().includes('white');
+      
+    // RTA Slope / Tilt (Compensación Psicoacústica)
+    // La música comercial sigue un perfil de Pink Noise (caída natural de graves a agudos).
+    // Si no aplicamos tilt, los agudos (hi-hat) se ven enanos aunque suenen fuertes.
+    // Analizadores top (FabFilter Pro-Q, SPAN) usan +4.5 dB/oct para música.
+    let tiltDbPerOctave = 4.5; 
+    if (isWhiteNoise) tiltDbPerOctave = 0.0; // White noise es plano de origen
+    else if (isSynthetic) tiltDbPerOctave = 3.0; // Pink noise requiere +3.0 dB/oct para verse plano
+
     ctx.beginPath();
     let nyquist = sampleRate / 2;
 
@@ -591,9 +599,6 @@ export class Visualizer {
       // -65 dBFS en el analizador será la línea central de 0dB de la cuadrícula, ideal para audios dinámicos.
       this.pivot1kHz = -65.0; 
     }
-
-    // Referencias de la Rejilla
-    const tiltDbPerOctave = 0.0; 
 
     // Pre-calculate Y path to draw fill, trace and peak hold separatedly
     const pathY = new Float32Array(width);
