@@ -459,7 +459,7 @@ export class AudioEngine {
   async loadTrack(trackId, url = null) {
     if (!this.ctx) await this.init();
     if (url) {
-      this.stopCurrentAudio();
+      this.stopAllAudio();
       const buffer = await this.resourceManager.loadAudio(trackId, url);
       this.currentTrackId = trackId;
       if (this.isPlaying) this.play();
@@ -589,6 +589,12 @@ export class AudioEngine {
         
         const gainNode = this.ctx.createGain();
         this.stemGainNodes[stem.id] = gainNode;
+        if (!this.stemAnalysers) this.stemAnalysers = {};
+        const analyser = this.ctx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.8;
+        this.stemAnalysers[stem.id] = analyser;
+        gainNode.connect(analyser);
         
         const state = this.stemStates ? this.stemStates[stem.id] : { muted: false, solo: false };
         let volume = 1.0;

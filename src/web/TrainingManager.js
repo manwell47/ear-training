@@ -168,19 +168,34 @@ export class TrainingManager {
    * Generates a new quiz trial based on active difficulty tier.
    */
   startNewTrial() {
-    if (this.lives <= 0) {
-      this.isGameOver = true;
+    // Fallbacks if not connected
+    const lives = this.gameLoopStore ? this.gameLoopStore.lives : 3;
+    const stage = this.gameLoopStore ? this.gameLoopStore.currentStage : 1;
+    const isCampaign = this.gameLoopStore ? this.gameLoopStore.activeGameMode === 'campaign' : false;
+
+    if (lives <= 0) {
       return;
     }
 
-    this.isBossStage = this.stage > 0 && this.stage % 5 === 0;
+    this.isBossStage = (stage > 0 && stage % 5 === 0);
 
-    if (this.difficulty === 'easy') {
-      this.generateEasyTrial();
-    } else if (this.difficulty === 'normal') {
-      this.generateNormalTrial();
+    if (isCampaign) {
+      const map = { 1: 'kick', 2: 'snare', 3: 'bass', 4: 'guitars', 5: 'master' };
+      this.currentAcousticClass = map[stage] || 'kick';
+      if (this.isBossStage) {
+        this.generateBossTrial();
+      } else {
+        this.currentTarget = this.generateAcousticTarget('normal'); // campaign can force normal/hard if needed
+        this.targetFilters = [this.currentTarget];
+      }
     } else {
-      this.generateHardTrial();
+      if (this.difficulty === 'easy') {
+        this.generateEasyTrial();
+      } else if (this.difficulty === 'normal') {
+        this.generateNormalTrial();
+      } else {
+        this.generateHardTrial();
+      }
     }
   }
 
@@ -388,8 +403,6 @@ export class TrainingManager {
     const score = isCorrect ? 100 : evalResult.accuracyPercentage;
     const pointsAwarded = isCorrect ? 1000 : evalResult.totalScore;
 
-    this.updateGamificationState(isCorrect, score, pointsAwarded);
-
     return {
       isCorrect,
       userFreqHz: userTarget.frequencyHz,
@@ -437,8 +450,6 @@ export class TrainingManager {
     const isCorrect = totalPrecision >= 80;
     let combinedIsPolarityFlipped = bandResults.some(br => br.evalResult.isPolarityFlipped);
 
-    this.updateGamificationState(isCorrect, totalPrecision, totalScore);
-
     const primaryTarget = this.targetFilters[0];
     const primaryGuess = userGuessesArray[0];
     const primaryResult = bandResults[0];
@@ -471,35 +482,5 @@ export class TrainingManager {
 
     this.lastTrialResult = resultObj;
     return resultObj;
-  }
-
-  /**
-   * Updates SoundGym Score Points, Signal Integrity (Lives), Streak & Stage progression.
-   */
-  updateGamificationState(isCorrect, score, pointsAwarded = 0) {
-    this.totalTrials++;
-    this.totalScoreSum += score;
-    this.scorePoints += pointsAwarded;
-
-    if (isCorrect) {
-      this.correctTrials++;
-      this.streak++;
-
-      if (this.streak > 0 && this.streak % 3 === 0) {
-        if (this.stage < this.maxStages) {
-          this.stage++;
-        }
-        if (this.lives < this.maxLives) {
-          this.lives++;
-        }
-      }
-    } else {
-      this.streak = 0;
-      this.lives = Math.max(0, this.lives - 1);
-
-      if (this.lives <= 0) {
-        this.isGameOver = true;
-      }
-    }
   }
 }

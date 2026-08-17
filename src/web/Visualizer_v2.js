@@ -511,23 +511,26 @@ export class Visualizer {
       if (textY > this.height - 15) textY = this.height - 15;
       if (textY < 15) textY = 15;
 
-      // Etiquetas RTA (Izquierda)
-      let rtaLabel = rtaDb === 0 ? `0 dBFS` : `${rtaDb} dBFS`;
-      ctx.fillStyle = 'rgba(11, 12, 16, 0.85)';
-      let rtaTextWidth = ctx.measureText(rtaLabel).width;
-      ctx.fillRect(28, textY - 10, rtaTextWidth + 4, 14);
-      ctx.fillStyle = eqGain === 0 ? 'rgba(0, 242, 254, 0.8)' : 'rgba(255, 255, 255, 0.35)';
-      ctx.fillText(rtaLabel, 30, textY);
+      // Skip drawing the -60 and -42 dBFS rows as they overlap with frequency axis and are irrelevant
+      if (rtaDb !== -60 && rtaDb !== -42) {
+        // Etiquetas RTA (Izquierda)
+        let rtaLabel = rtaDb === 0 ? `0 dBFS` : `${rtaDb} dBFS`;
+        ctx.fillStyle = 'rgba(11, 12, 16, 0.85)';
+        let rtaTextWidth = ctx.measureText(rtaLabel).width;
+        ctx.fillRect(28, textY - 10, rtaTextWidth + 4, 14);
+        ctx.fillStyle = eqGain === 0 ? 'rgba(0, 242, 254, 0.8)' : 'rgba(255, 255, 255, 0.35)';
+        ctx.fillText(rtaLabel, 30, textY);
 
-      // Etiquetas EQ (Derecha)
-      let eqLabel = eqGain > 0 ? `+${eqGain} dB` : (eqGain === 0 ? `0 dB (EQ)` : `${eqGain} dB`);
-      ctx.textAlign = 'right';
-      let eqTextWidth = ctx.measureText(eqLabel).width;
-      ctx.fillStyle = 'rgba(11, 12, 16, 0.85)';
-      ctx.fillRect(this.width - 32 - eqTextWidth, textY - 10, eqTextWidth + 4, 14);
-      ctx.fillStyle = eqGain === 0 ? 'rgba(0, 242, 254, 0.8)' : 'rgba(168, 85, 247, 0.8)';
-      ctx.fillText(eqLabel, this.width - 30, textY);
-      ctx.textAlign = 'left'; // Reset
+        // Etiquetas EQ (Derecha)
+        let eqLabel = eqGain > 0 ? `+${eqGain} dB` : (eqGain === 0 ? `0 dB (EQ)` : `${eqGain} dB`);
+        ctx.textAlign = 'right';
+        let eqTextWidth = ctx.measureText(eqLabel).width;
+        ctx.fillStyle = 'rgba(11, 12, 16, 0.85)';
+        ctx.fillRect(this.width - 32 - eqTextWidth, textY - 10, eqTextWidth + 4, 14);
+        ctx.fillStyle = eqGain === 0 ? 'rgba(0, 242, 254, 0.8)' : 'rgba(168, 85, 247, 0.8)';
+        ctx.fillText(eqLabel, this.width - 30, textY);
+        ctx.textAlign = 'left'; // Reset
+      }
     });
   }
 

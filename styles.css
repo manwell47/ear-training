@@ -1159,8 +1159,8 @@ html, body {
 .stem-mixer-tracks {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 50vh;
+  gap: 4px;
+  max-height: 70vh;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -1371,3 +1371,5 @@ html, body {
   z-index: 20;
 }
 
+
+.stem-vu-meter-bg { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, rgba(34,197,94,0.4) 0%, rgba(234,179,8,0.4) 75%, rgba(239,68,68,0.4) 100%); border-radius: 4px; pointer-events: none; transition: width 0.05s linear; z-index: 0; }

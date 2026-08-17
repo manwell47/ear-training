@@ -49,19 +49,27 @@ export const MULTITRACK_SESSIONS = [
     ]
   },
   {
-    id: 'drums_studio_session',
-    displayName: 'Batería Acústica Studio',
+    id: 'rb_session',
+    displayName: 'Banda R&B (Multitrack)',
     category: 'Multitrack Sessions',
-    targetStem: 'ds_kick_in',
+    targetStem: 'rb_kick_in',
     stems: [
-      { id: 'ds_kick_in', displayName: 'Kick In', filename: 'Drums-Kick In-M82.ogg', acousticClass: 'kick' },
-      { id: 'ds_kick_out', displayName: 'Kick Out', filename: 'Drums-Kick Out-Proto 647.ogg', acousticClass: 'kick' },
-      { id: 'ds_snare_top', displayName: 'Snare Top', filename: 'Drums-Snare Top-M80.ogg', acousticClass: 'snare' },
-      { id: 'ds_snare_bot', displayName: 'Snare Bottom', filename: 'Drums-Snare Bottom-M81.ogg', acousticClass: 'snare' },
-      { id: 'ds_rack', displayName: 'Rack Tom', filename: 'Drums-Rack-M81.ogg', acousticClass: 'generic' },
-      { id: 'ds_floor', displayName: 'Floor Tom', filename: 'Drums-Floor-M81.ogg', acousticClass: 'generic' },
-      { id: 'ds_oh', displayName: 'Overheads', filename: 'Drums-Overhead-Ela M 260.ogg', acousticClass: 'cymbals' },
-      { id: 'ds_room', displayName: 'Room', filename: 'Drums-Room-M60.ogg', acousticClass: 'room' }
+      { id: 'rb_kick_in', displayName: 'Kick In', filename: 'Drums-Kick In-M82.ogg', acousticClass: 'kick' },
+      { id: 'rb_kick_out', displayName: 'Kick Out', filename: 'Drums-Kick Out-Proto 647.ogg', acousticClass: 'kick' },
+      { id: 'rb_snare_top', displayName: 'Snare Top', filename: 'Drums-Snare Top-M80.ogg', acousticClass: 'snare' },
+      { id: 'rb_snare_bot', displayName: 'Snare Bottom', filename: 'Drums-Snare Bottom-M81.ogg', acousticClass: 'snare' },
+      { id: 'rb_rack', displayName: 'Rack Tom', filename: 'Drums-Rack-M81.ogg', acousticClass: 'generic' },
+      { id: 'rb_floor', displayName: 'Floor Tom', filename: 'Drums-Floor-M81.ogg', acousticClass: 'generic' },
+      { id: 'rb_oh', displayName: 'Overheads', filename: 'Drums-Overhead-Ela M 260.ogg', acousticClass: 'cymbals' },
+      { id: 'rb_room', displayName: 'Drum Room', filename: 'Drums-Room-M60.ogg', acousticClass: 'room' },
+      { id: 'rb_gtr_cu29', displayName: 'Guitar Amp (CU29)', filename: 'Ele Guitar-Amp-CU29.ogg', acousticClass: 'guitars' },
+      { id: 'rb_gtr_m80', displayName: 'Guitar Amp (M80)', filename: 'Ele Guitar-Amp-M80.ogg', acousticClass: 'guitars' },
+      { id: 'rb_keys_org', displayName: 'Keys Organ (DI)', filename: 'Keys-Organ-Active DI.ogg', acousticClass: 'generic' },
+      { id: 'rb_keys_wurli', displayName: 'Keys Wurli (DI)', filename: 'Keys-Wurli-Active DI.ogg', acousticClass: 'generic' },
+      { id: 'rb_vox_lead', displayName: 'Vocals Lead (U47)', filename: 'Vocals-Lead-U47.ogg', acousticClass: 'vocals' },
+      { id: 'rb_vox_bv1', displayName: 'Vocals BV 1 (M81)', filename: 'Vocals-BV1-M81.ogg', acousticClass: 'vocals' },
+      { id: 'rb_vox_bv2', displayName: 'Vocals BV 2 (M81)', filename: 'Vocals-BV2-M81.ogg', acousticClass: 'vocals' },
+      { id: 'rb_chamber', displayName: 'Chamber Room', filename: 'Chamber-M60.ogg', acousticClass: 'room' }
     ]
   },
   {
@@ -142,12 +150,14 @@ export const AUDIO_SOURCES = [
     { id: 'vox_valve', displayName: 'Voz Principal (Mic: Válvulas)', filename: 'Vocals-Lead-U47.ogg', category: 'Nivel 4: Mezcla y Voces', isSynthetic: false, acousticClass: 'vocals' },
     { id: 'vox_dyn', displayName: 'Voz Principal (Mic: Dinámico)', filename: 'VOX LEAD_M80.ogg', category: 'Nivel 4: Mezcla y Voces', isSynthetic: false, acousticClass: 'vocals' },
     { id: 'mix_ref', displayName: 'Mezcla Completa (Referencia)', filename: 'HEY DELILAH- reference mix.ogg', category: 'Nivel 4: Mezcla y Voces', isSynthetic: false, acousticClass: 'drumbus' },
+    { id: 'mix_beat1', displayName: 'Beat 1 (Stereo Mix)', filename: 'Sin título1 - 0001 - Instrumento - beat 1.ogg', category: 'Nivel 4: Mezcla y Voces', isSynthetic: false, acousticClass: 'drumbus' },
+    { id: 'mix_beat2', displayName: 'Beat 2 (Stereo Mix)', filename: 'Sin título1 - 0005 - Instrumento - beat 2 - 120 BPM.ogg', category: 'Nivel 4: Mezcla y Voces', isSynthetic: false, acousticClass: 'drumbus' },
+    { id: 'mix_beat3', displayName: 'Beat 3 (Stereo Mix, 190 BPM)', filename: 'beat 3 - 190 BPM - 0011 - Instrumento - Superior Drummer 3 01.ogg', category: 'Nivel 4: Mezcla y Voces', isSynthetic: false, acousticClass: 'drumbus' },
 
     // --- SESIONES MULTITRACK (Interactivas) ---
     { id: 'beat1_session', displayName: 'Beat 1 (Multitrack)', filename: null, category: 'Sesiones Multitrack', isSynthetic: false, isMultitrack: true, acousticClass: 'drumbus' },
     { id: 'beat2_session', displayName: 'Beat 2 (Multitrack)', filename: null, category: 'Sesiones Multitrack', isSynthetic: false, isMultitrack: true, acousticClass: 'drumbus' },
     { id: 'orch_session', displayName: 'Orquesta Sinfónica Clásica', filename: null, category: 'Sesiones Multitrack', isSynthetic: false, isMultitrack: true, acousticClass: 'room' },
-    { id: 'drums_studio_session', displayName: 'Batería Acústica Studio', filename: null, category: 'Sesiones Multitrack', isSynthetic: false, isMultitrack: true, acousticClass: 'drumbus' },
     { id: 'rb_session', displayName: 'Banda R&B (Multitrack)', filename: null, category: 'Sesiones Multitrack', isSynthetic: false, isMultitrack: true, acousticClass: 'drumbus' },
     { id: 'acappella_session', displayName: 'A-Cappella Group', filename: null, category: 'Sesiones Multitrack', isSynthetic: false, isMultitrack: true, acousticClass: 'vocals' },
     { id: 'rock_band_session', displayName: 'Rock Band', filename: null, category: 'Sesiones Multitrack', isSynthetic: false, isMultitrack: true, acousticClass: 'drumbus' }
@@ -284,9 +294,14 @@ export class AudioResourceManager {
         let fetchUrl = url;
         if (!fetchUrl) {
           const found = AUDIO_SOURCES.find(t => t.id === trackId);
-          if (found && found.filename) {
-            fetchUrl = `Music Ear Training/Oggs/${found.filename}`;
-          } else {
+          if (found) {
+            if (found.blobUrl) {
+              fetchUrl = found.blobUrl;
+            } else if (found.filename) {
+              fetchUrl = `Music Ear Training/Oggs/${found.filename}`;
+            }
+          }
+          if (!fetchUrl) {
             // Search in multitrack sessions
             for (const session of MULTITRACK_SESSIONS) {
               const stem = session.stems.find(s => s.id === trackId);

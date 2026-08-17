@@ -336,202 +336,143 @@
         </div>
       </div>
 
-      <!-- Step 2: DIFFICULTY_SELECT -->
-      <div id="screenDifficultySelect" class="onboarding-step hidden">
-        <div class="step-header">
-          <h2 class="step-title">Selecciona tu Nivel</h2>
-          <p class="step-subtitle">Elige el formato pedagógico según tu experiencia:</p>
-        </div>
-
-        <div class="difficulty-grid">
-          <!-- Easy Level -->
-          <div class="difficulty-card easy-card" data-level="easy" onclick="window.setMode && window.setMode('easy')">
-            <div>
-              <div class="card-header-row">
-                <h3 class="card-title">Fácil</h3>
-                <span class="difficulty-badge badge-easy">Opciones</span>
-              </div>
-              <p class="module-desc">
-                Escucha el objetivo y elige la frecuencia correcta entre 4 opciones dadas (A, B, C, D).
-              </p>
-            </div>
-            <button class="btn btn-primary btn-select-level" data-level="easy" onclick="window.setMode && window.setMode('easy')" style="width: 100%;">
-              Seleccionar Fácil ➔
-            </button>
-          </div>
-
-          <!-- Normal Level -->
-          <div class="difficulty-card normal-card" data-level="normal" onclick="window.setMode && window.setMode('normal')">
-            <div>
-              <div class="card-header-row">
-                <h3 class="card-title">Normal</h3>
-                <span class="difficulty-badge badge-normal">Banda de Tolerancia</span>
-              </div>
-              <p class="module-desc">
-                Encuentra la frecuencia en la gráfica con <strong>margen de tolerancia amplio</strong> (obtén aciertos y puntos al estar dentro de la banda).
-              </p>
-            </div>
-            <button class="btn btn-accent btn-select-level" data-level="normal" onclick="window.setMode && window.setMode('normal')" style="width: 100%;">
-              Seleccionar Normal ➔
-            </button>
-          </div>
-
-          <!-- Hard Level -->
-          <div class="difficulty-card hard-card" data-level="hard" onclick="window.setMode && window.setMode('hard')">
-            <div>
-              <div class="card-header-row">
-                <h3 class="card-title">Pro Surgical</h3>
-                <span class="difficulty-badge badge-hard">Banda Tolerante</span>
-              </div>
-              <p class="module-desc">
-                Cortes estrechos y variaciones sutiles. Ajusta Frecuencia, Ganancia, Q y Tipo de Filtro.
-              </p>
-            </div>
-            <button class="btn btn-danger btn-select-level" data-level="hard" onclick="window.setMode && window.setMode('hard')" style="width: 100%;">
-              Seleccionar Pro ➔
-            </button>
-          </div>
-        </div>
-
-        <div class="step-footer">
-          <button id="btnBackToModules" class="btn btn-secondary">
-            ← Atrás
-          </button>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- Game Over Modal -->
-  <div id="gameOverModal" class="modal-backdrop">
-    <div class="modal-card vst-glass-panel">
-      <div class="modal-header">
-        <div class="modal-icon failure">💀</div>
-        <div>
-          <h3 class="text-rose" style="font-size: 1.25rem;">¡Señal Perdida! Game Over</h3>
-          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem;">Tus vidas han llegado a cero.</p>
-        </div>
-      </div>
-
-      <div class="feedback-details">
-        <div class="detail-row"><span>Score Total:</span> <strong id="finalScorePoints" class="text-amber">0</strong></div>
-        <div class="detail-row"><span>Mayor Racha:</span> <strong id="finalStreak">0</strong></div>
-        <div class="detail-row"><span>Precisión Promedio:</span> <strong id="finalScore" class="text-cyan">0%</strong></div>
-      </div>
-
-      <button id="restartGameBtn" class="btn btn-accent" style="justify-content: center; width: 100%;">
-        🔄 Reiniciar Sesión
-      </button>
-    </div>
-  </div>
-
-  <!-- Level Up Modal Overlay -->
-  <div id="levelUpModal" class="modal-backdrop">
-    <div class="modal-card vst-glass-panel text-center" style="max-width: 480px; text-align: center; border: 2px solid #f59e0b; box-shadow: 0 0 35px rgba(245, 158, 11, 0.45);">
-      <div style="font-size: 3.5rem; margin-bottom: 0.5rem; animation: pulse 1s infinite;">🏆</div>
-      <h2 style="font-size: 1.8rem; color: #f59e0b; margin-bottom: 0.3rem;">¡VICTORIA CONTRA EL BOSS!</h2>
-      <p style="font-size: 0.95rem; color: #e2e8f0; margin-bottom: 1.2rem;">Has superado la prueba del cliente con éxito.</p>
       
-      <div style="background: rgba(245, 158, 11, 0.12); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid rgba(245, 158, 11, 0.35);">
-        <div style="font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Nuevo Rango Profesional Conseguido</div>
-        <div id="modalNewRankTitle" style="font-size: 1.5rem; color: #38bdf8; font-weight: bold; margin-top: 0.4rem;">Asistente de Estudio</div>
-      </div>
-
-      <button id="btnContinueLevelUp" class="btn btn-accent" style="justify-content: center; width: 100%; font-size: 1.05rem;">
-        Continuar al Siguiente Nivel ➔
-      </button>
-    </div>
-  </div>
-
-  <!-- Boss Defeat Modal Overlay -->
-  <div id="bossDefeatModal" class="modal-backdrop">
-    <div class="modal-card vst-glass-panel text-center" style="max-width: 480px; text-align: center; border: 2px solid #f43f5e; box-shadow: 0 0 35px rgba(244, 63, 94, 0.45);">
-      <div style="font-size: 3.5rem; margin-bottom: 0.5rem;">💔</div>
-      <h2 style="font-size: 1.8rem; color: #f43f5e; margin-bottom: 0.5rem;">DERROTA EN EL BOSS</h2>
-      <p id="modalDefeatMessage" style="font-size: 0.95rem; color: #e2e8f0; margin-bottom: 1.2rem;">
-        Has fallado la mezcla del cliente. Vuelve a afinar tu oído y reinténtalo.
-      </p>
-      <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 1.5rem; background: rgba(244, 63, 94, 0.1); padding: 0.6rem; border-radius: 6px;">
-        Penalización: Has vuelto a caer al <strong>Stage 4/5</strong>.
-      </div>
-
-      <button id="btnRetryBoss" class="btn btn-secondary" style="justify-content: center; width: 100%; border-color: #f43f5e; color: #f43f5e; font-size: 1rem;">
-        Volver al Stage 4 y Reintentar ➔
-      </button>
-      <div id="screenWelcome" class="onboarding-step hidden">
-        <div class="welcome-hero">
-          <div class="welcome-logo">🎛️</div>
-          <h1 class="welcome-title">Ear Training App</h1>
-          <h2 class="welcome-subtitle">Mejora tu precisión auditiva</h2>
-          <p class="welcome-desc">
-            Desarrollado para ingenieros de mezcla y máster. Entrena tu oído para identificar picos de frecuencia, 
-            cortes quirúrgicos, variaciones de ganancia y anomalías espectrales con bandas de tolerancia pedagógica.
-          </p>
-          <button id="btnStartWelcome" class="btn btn-primary btn-hero" style="margin-top: 1rem;">
-            Iniciar Sesión de Entrenamiento ➔
-          </button>
-        </div>
-      </div>
-
-      <!-- Step 1: MODULE_SELECT -->
-      <div id="screenModuleSelect" class="onboarding-step hidden">
+      <!-- Step 1.5: GAME_MODE_SELECT -->
+      <div id="screenGameModeSelect" class="onboarding-step hidden">
         <div class="step-header">
-          <h2 class="step-title">Selecciona el Módulo de Entrenamiento</h2>
-          <p class="step-subtitle">Elige la disciplina técnica en la que deseas practicar hoy:</p>
+          <button class="btn btn-secondary btn-compact" id="btnBackToModulesFromMode" style="margin-bottom: 1rem;">← Volver</button>
+          <h2 class="step-title">Selecciona el Modo de Juego</h2>
+          <p class="step-subtitle">Elige cómo quieres enfocar tu sesión de hoy:</p>
         </div>
 
         <div class="modules-grid">
-          <!-- Module 1: Surgical EQ (Active) -->
+          <!-- Mode 1: Soundcheck Arcade -->
           <div class="module-card active-module">
-            <div class="module-icon">🎛️</div>
+            <div class="module-icon">⚡</div>
             <div class="module-name">
-              <span>Surgical EQ</span>
-              <span class="badge-easy">Disponible</span>
+              <span>Soundcheck (Arcade)</span>
             </div>
             <p class="module-desc">
-              Identificación precisa de frecuencias (20 Hz - 20 kHz), ganancia en dB, factor Q y tipos de filtro.
+              Instrumentos aleatorios sin parar. Gana multiplicadores de puntos por aciertos consecutivos. ¡Modo supervivencia con 3 vidas!
             </p>
-            <button id="btnSelectSurgicalEQ" class="btn btn-primary" style="margin-top: auto;">
-              Seleccionar ➔
+            <button id="btnModeArcade" class="btn btn-primary" style="margin-top: auto;">
+              Seleccionar Arcade
             </button>
           </div>
 
-          <!-- Module 2: Dynamic Range (Locked) -->
-          <div class="module-card locked-module">
-            <div class="module-icon">🎚️</div>
+          <!-- Mode 2: Mix Session Campaign -->
+          <div class="module-card active-module">
+            <div class="module-icon">🎛️</div>
             <div class="module-name">
-              <span>Dynamic Range</span>
-              <span class="badge-locked">Próximamente</span>
+              <span>Sesión de Mezcla (Campaña)</span>
             </div>
             <p class="module-desc">
-              Entrenamiento en compresión, ataque, release, ratio, knee y saturación armónica.
+              Entrenamiento lógico y secuencial (Bottom-Up). Arregla pista a pista (Batería, Bajo, Guitarras) hasta enfrentarte al Boss en el Bus Master.
             </p>
-            <button class="btn btn-disabled" disabled>Próximamente</button>
+            <button id="btnModeCampaign" class="btn btn-accent" style="margin-top: auto;">
+              Seleccionar Campaña
+            </button>
           </div>
 
-          <!-- Module 3: Spatial Pan (Locked) -->
-          <div class="module-card locked-module">
-            <div class="module-icon">🔊</div>
-            <div class="module-name">
-              <span>Spatial Pan</span>
-              <span class="badge-locked">Próximamente</span>
+          <!-- Mode 3: Modo Libre (Custom Upload) -->
+          <div class="module-card active-module" style="border-color: #10b981;">
+            <div class="module-icon" style="color: #10b981;">🎧</div>
+            <div class="module-name" style="color: #10b981;">
+              <span>Modo Libre (Upload)</span>
             </div>
             <p class="module-desc">
-              Localización de imagen estéreo L/R, panoramización psychoacústica y balance de fase.
+              Sube tu propia pista estéreo. El motor procesará tu canción para que practiques tu ecualización quirúrgica en un contexto real.
             </p>
-            <button class="btn btn-disabled" disabled>Próximamente</button>
+            <input type="file" id="customAudioUpload" accept="audio/*" style="display: none;">
+            <button id="btnModeLibre" class="btn btn-secondary" style="margin-top: auto; border-color: #10b981; color: #10b981;">
+              Subir Pista y Jugar
+            </button>
           </div>
-        </div>
-
-        <div class="step-footer">
-          <button id="btnBackToWelcome" class="btn btn-secondary">
-            ← Atrás
-          </button>
         </div>
       </div>
 
-      <!-- Step 2: DIFFICULTY_SELECT -->
+
+      <!-- Step 1.75: CAMPAIGN_SELECT -->
+      <div id="screenCampaignSelect" class="onboarding-step hidden">
+        <div class="step-header">
+          <button class="btn btn-secondary btn-compact" id="btnBackToModeFromCampaign" style="margin-bottom: 1rem;">← Volver</button>
+          <h2 class="step-title">Selecciona la Sesión de Mezcla</h2>
+          <p class="step-subtitle">Elige qué pista multipistas quieres dominar:</p>
+        </div>
+
+        <div class="difficulty-grid" id="campaignGrid">
+          <!-- Populated dynamically by JS or statically -->
+          <!-- We will just populate statically as there are only 6 tracks -->
+          
+          <div class="difficulty-card easy-card campaign-card" data-campaign="beat1_session">
+            <div>
+              <div class="card-header-row">
+                <h3 class="card-title">Beat 1</h3>
+                <span class="difficulty-badge badge-easy">Electrónica</span>
+              </div>
+              <p class="module-desc">Bombo, Caja y Hi-Hat.</p>
+            </div>
+            <button class="btn btn-primary btn-select-campaign" data-campaign="beat1_session" style="width: 100%;">Seleccionar ➔</button>
+          </div>
+
+          <div class="difficulty-card easy-card campaign-card" data-campaign="beat2_session">
+            <div>
+              <div class="card-header-row">
+                <h3 class="card-title">Beat 2</h3>
+                <span class="difficulty-badge badge-normal">Batería Acústica</span>
+              </div>
+              <p class="module-desc">Kit completo de batería acústica.</p>
+            </div>
+            <button class="btn btn-primary btn-select-campaign" data-campaign="beat2_session" style="width: 100%;">Seleccionar ➔</button>
+          </div>
+
+          <div class="difficulty-card normal-card campaign-card" data-campaign="rock_band_session">
+            <div>
+              <div class="card-header-row">
+                <h3 class="card-title">Rock Band</h3>
+                <span class="difficulty-badge badge-normal">Banda de Rock</span>
+              </div>
+              <p class="module-desc">Batería, Bajo, Guitarras, Voces.</p>
+            </div>
+            <button class="btn btn-accent btn-select-campaign" data-campaign="rock_band_session" style="width: 100%;">Seleccionar ➔</button>
+          </div>
+
+          <div class="difficulty-card normal-card campaign-card" data-campaign="rb_session">
+            <div>
+              <div class="card-header-row">
+                <h3 class="card-title">R&B Band</h3>
+                <span class="difficulty-badge badge-normal">R&B</span>
+              </div>
+              <p class="module-desc">Beat, Keys, Bass, Vocals.</p>
+            </div>
+            <button class="btn btn-accent btn-select-campaign" data-campaign="rb_session" style="width: 100%;">Seleccionar ➔</button>
+          </div>
+
+          <div class="difficulty-card hard-card campaign-card" data-campaign="orch_session">
+            <div>
+              <div class="card-header-row">
+                <h3 class="card-title">Orquesta Sinfónica</h3>
+                <span class="difficulty-badge badge-hard">Orquesta</span>
+              </div>
+              <p class="module-desc">Cuerdas, Maderas, Metales, Percusión.</p>
+            </div>
+            <button class="btn btn-danger btn-select-campaign" data-campaign="orch_session" style="width: 100%;">Seleccionar ➔</button>
+          </div>
+
+          <div class="difficulty-card hard-card campaign-card" data-campaign="acappella_session">
+            <div>
+              <div class="card-header-row">
+                <h3 class="card-title">A-Cappella</h3>
+                <span class="difficulty-badge badge-hard">Voces</span>
+              </div>
+              <p class="module-desc">Coros, Armonías y Voz Principal.</p>
+            </div>
+            <button class="btn btn-danger btn-select-campaign" data-campaign="acappella_session" style="width: 100%;">Seleccionar ➔</button>
+          </div>
+        </div>
+      </div>
+
+<!-- Step 2: DIFFICULTY_SELECT -->
       <div id="screenDifficultySelect" class="onboarding-step hidden">
         <div class="step-header">
           <h2 class="step-title">Selecciona tu Nivel</h2>
@@ -689,5 +630,6 @@
       originalConsoleError.apply(console, args);
     };
   </script>
-  <script type="module" src="./src/web/App_v44.js"></script>
+  <script type="module" src="./src/web/App.js?v=56"></script>
 </body>
+</html>

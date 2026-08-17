@@ -42,6 +42,7 @@ export class GameLoopManager {
       maxLives: 5,
       streak: 0,
       activeDifficulty: 'easy', // 'easy' | 'normal' | 'hard'
+      activeGameMode: 'arcade', // 'arcade' | 'campaign'
       activeTrackId: 'pink-noise',
       currentFilterNodes: [],
       userGuessNodes: []
@@ -108,6 +109,14 @@ export class GameLoopManager {
   }
 
   /**
+   * Sets active game mode ('arcade' | 'campaign').
+   */
+  setGameMode(mode) {
+    this.store.activeGameMode = mode;
+    this.notify();
+  }
+
+  /**
    * Sets active difficulty mode ('easy' | 'normal' | 'hard').
    */
   setDifficulty(mode) {
@@ -132,7 +141,7 @@ export class GameLoopManager {
    */
   evaluateTrialOutcome(precisionPercentage, trialPoints = 0) {
     const isBoss = this.store.currentStage >= this.store.maxStages || this.store.isBossFight;
-    let outcome = { victory: false, isBoss };
+    let outcome = { victory: false, isBoss, isLevelUp: false, isBossDefeated: false, isGameOver: false };
 
     // Update Score
     const earned = Math.round(trialPoints * this.store.currentMultiplier);
@@ -149,6 +158,9 @@ export class GameLoopManager {
         outcome = {
           victory: true,
           isBoss: true,
+          isLevelUp: true,
+          isBossDefeated: true,
+          isGameOver: false,
           newLevel: this.store.currentLevel,
           rankTitle: this.getRankTitle()
         };
@@ -162,6 +174,9 @@ export class GameLoopManager {
         outcome = {
           victory: false,
           isBoss: true,
+          isLevelUp: false,
+          isBossDefeated: false,
+          isGameOver: this.store.lives <= 0,
           message: "Has fallado la mezcla del cliente. Penalización: Has vuelto al Stage 4/5."
         };
         this.transitionTo(GAME_STATES.SHOWING_RESULTS);
@@ -173,11 +188,11 @@ export class GameLoopManager {
         if (this.store.currentStage >= 5) {
           this.store.isBossFight = true;
         }
-        outcome = { victory: true, isBoss: false };
+        outcome = { victory: true, isBoss: false, isLevelUp: false, isBossDefeated: false, isGameOver: false };
       } else {
         this.store.streak = 0;
         this.store.lives = Math.max(0, this.store.lives - 1);
-        outcome = { victory: false, isBoss: false };
+        outcome = { victory: false, isBoss: false, isLevelUp: false, isBossDefeated: false, isGameOver: this.store.lives <= 0 };
       }
       this.transitionTo(GAME_STATES.SHOWING_RESULTS);
     }

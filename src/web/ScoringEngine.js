@@ -169,7 +169,7 @@ export class ScoringEngine {
       gainDifference: gainDiff,
       freqPoints,
       gainPoints,
-      typeBonusPoints,
+      typeBonusPoints: actualTypeBonus,
       topologicalPenalty,
       isPolarityFlipped,
       isCorrect,
