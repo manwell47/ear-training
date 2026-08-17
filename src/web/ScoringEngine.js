@@ -117,10 +117,11 @@ export class ScoringEngine {
     let basePoints = freqPoints + gainPoints; // Rango [0 - 1000 PTS]
     basePoints = Math.round(basePoints * topologicalPenalty);
 
-    // Only award type bonus if they got at least some points for freq/gain
-    const actualTypeBonus = basePoints > 0 ? typeBonusPoints : 0;
-    const totalScore = basePoints + actualTypeBonus; // Rango [0 - 1100 PTS con Bono]
     const precisionPercentage = topologicalPenalty === 0.0 ? 0 : Math.round((basePoints / 1000) * 100);
+
+    // Solo damos el bono por acertar el tipo de filtro si la precisión es aceptable (>= 40%)
+    const actualTypeBonus = precisionPercentage >= 40 ? typeBonusPoints : 0;
+    const totalScore = basePoints + actualTypeBonus; // Rango [0 - 1100 PTS con Bono]
 
     const isCorrect = precisionPercentage >= 35 && !isPolarityFlipped && topologicalPenalty === 1.0; // Umbral de aprobación
 
@@ -332,27 +333,27 @@ export function checkFilterFalseFriends(target, guess) {
 
   // Caso 1 (Target: Low Shelf atenuando / Guess: High Pass)
   if (targetType === 'lowshelf' && targetGain < 0 && guessType === 'highpass') {
-    return "¡Falso Amigo! Has notado que hay menos graves, pero usaste la herramienta equivocada. Un High Pass es como un muro: elimina todo lo que hay por debajo. El Low Shelf es como un escalón: baja el volumen de los graves, pero los deja seguir sonando de fondo. Si aún escuchas el peso del subgrave, es un Shelf.";
+    return "¡Ojo con el hacha! Has notado que sobran graves y le has metido un High Pass. El High Pass corta TODO de raíz. El Low Shelf es más como bajarle un poco el volumen a esa zona sin castrar el instrumento. Si escuchabas algo de fondo, era un Shelf.";
   }
 
   // Caso 2 (Target: High Pass / Guess: Low Shelf atenuando)
   if (targetType === 'highpass' && guessType === 'lowshelf' && guessGain < 0) {
-    return "¡Casi! Identificaste la zona del problema. Sin embargo, el Low Shelf deja un 'suelo' por el que se siguen colando ruidos graves. El objetivo era un High Pass, que actúa como un acantilado y limpia absolutamente todo el retumbe innecesario.";
+    return "Casi, pero te quedaste corto. El Low Shelf atenúa, pero sigue dejando pasar graves por debajo. Aquí el problema pedía tijera de podar (un High Pass) para limpiar de golpe todo ese ruido de fondo inútil.";
   }
 
   // Caso 3 (Target: High Shelf realzando / Guess: Bell en agudos)
   if (targetType === 'highshelf' && targetGain > 0 && (guessType === 'peaking' || guessType === 'bell') && guessFreq > 5000) {
-    return "¡Ambos dan brillo, pero cuidado! Una Campana (Bell) sube una zona concreta y luego vuelve a bajar. El High Shelf sube esa frecuencia Y todo lo que haya por encima de ella hasta el límite auditivo. Si notas que el siseo súper agudo ('hiss') también ha subido mucho, suele ser un Shelf.";
+    return "Le has metido brillo con una Campana, lo que resalta un punto concreto y vuelve a bajar. Pero esto pedía un High Shelf: levantar desde ahí hacia arriba para abrir el 'aire' de la mezcla. Si notas que subió el siseo hasta el infinito, suele ser un Shelf.";
   }
 
   // Caso 4: La Trampa del Aire (Bell vs High Shelf)
   if ((targetType === 'peaking' || targetType === 'bell') && targetFreq > 1500 && (guessType === 'highshelf' || guessType === 'high_shelf')) {
-    return "¡Falso Amigo! Acertaste la zona de presencia, pero usaste un High Shelf. La Campana da ataque a un elemento concreto; el Shelf levanta indiscriminadamente todo el ruido de fondo (hiss) y la fatiga auditiva hasta los 20kHz. Acabas de ensordecer la mezcla.";
+    return "Te pasaste de frenada. Acertaste la zona, pero usaste un High Shelf. La Campana (Bell) levanta el ataque de un elemento concreto; el Shelf levanta todo el 'aire' de golpe. Acabas de freírnos los oídos sacando a flote todo el siseo y ruido de fondo de la pista.";
   }
 
   // Caso 5: El Falso Teléfono (Bandpass vs Doble Shelf / Shelves)
   if (targetType === 'bandpass' && (guessType.includes('shelf'))) {
-    return "¡Falso Amigo! Intentaste aislar los medios atenuando graves y agudos con Shelves (estanterías). Esto deja un 'suelo' por el que se colan los extremos. Para un efecto telefónico o de radio puro, necesitas aislar completamente con cortes (High Pass + Low Pass o un Bandpass).";
+    return "Intentaste hacer el clásico efecto de 'teléfono' usando Shelves para bajar extremos. Eso no sirve, siempre se cuela sonido. Para un efecto de radio puro, hay que tajar por ambos lados con cortes absolutos (High Pass + Low Pass) o un Bandpass directo.";
   }
 
   return null;
@@ -360,72 +361,72 @@ export function checkFilterFalseFriends(target, guess) {
 
 const ContextMatrix = {
   bombo: [
-    { range: [0, 55], boost: "Sub-graves: Añade peso y energía en subsistemas grandes, pero resta headroom rápidamente.", cut: "Sub-graves: Limpia el rumble. Útil si el bajo (bassline) debe liderar esta zona." },
-    { range: [55, 150], boost: "Cuerpo: Aumenta la pegada en el pecho (punch).", cut: "Cuerpo: Adelgaza el sonido. Sugiere que se intenta hacer hueco para otro instrumento (como el bajo) o eliminar resonancias." },
-    { range: [150, 450], boost: "Zona Fangosa / Mud: Ensucia la mezcla, añade sonido a 'caja de cartón'.", cut: "Zona Fangosa / Mud: Práctica muy común. Limpia la mezcla y da claridad al resto de elementos." },
-    { range: [450, 2500], boost: "Medios: Realzar aquí ensucia el ataque con un tono nasal a lata.", cut: "Medios: Vacía el centro para hacer espacio a las guitarras y voces." },
-    { range: [2500, 6000], boost: "Ataque / Clic: Resalta el impacto de la maza contra el parche. Ayuda a que el bombo corte en mezclas densas.", cut: "Ataque / Clic: Suaviza el bombo, dándole un tono más vintage o apagado." },
-    { range: [6000, 24000], boost: "Agudos / Aire: Aumenta el siseo y exacerba drásticamente el sangrado (bleed) de platos.", cut: "Agudos / Aire: Filtra ruido de alta frecuencia irrelevante para un bombo." }
+    { range: [0, 55], boost: "Sub-graves: Da muchísimo peso y hace temblar las paredes, pero te vas a quedar sin volumen en la mezcla enseguida.", cut: "Sub-graves: Limpia el retumbe inútil. Perfecto si quieres que el bajo mande ahí abajo." },
+    { range: [55, 150], boost: "Cuerpo: La hostia en el pecho (punch). Aquí vive el bombo.", cut: "Cuerpo: Estás dejando el bombo en los huesos. Solo tiene sentido si intentas meter un bajo enorme." },
+    { range: [150, 450], boost: "Zona a cartón (Mud): Suena a caja de zapatos. Rara vez se sube esto.", cut: "Zona a cartón: Vaciar aquí es el truco más viejo del manual para que el bombo suene moderno y limpio." },
+    { range: [450, 2500], boost: "Medios: Ensucia y suena a lata barata.", cut: "Medios: Rebajar esto deja un agujero perfecto para que las guitarras y las voces respiren." },
+    { range: [2500, 6000], boost: "Ataque / Clic: El chasquido de la maza. Clave para que el bombo se oiga en los móviles y no solo se sienta.", cut: "Ataque: Deja el bombo muy redondo y antiguo (vintage), pero se va a perder si la mezcla está llena de cosas." },
+    { range: [6000, 24000], boost: "Aire: Aquí no hay bombo, solo ruido. Estás subiendo el sangrado del charles y los platos.", cut: "Aire: Perfecto para aislar el bombo y quitar ruido de arriba." }
   ],
   caja: [
-    { range: [0, 150], boost: "Rumble: Ensucia la mezcla con graves innecesarios.", cut: "Rumble: Excelente práctica (High Pass) para dejar espacio al bajo y bombo." },
-    { range: [150, 250], boost: "Cuerpo / Body: Le da grosor y peso a la caja.", cut: "Cuerpo: Adelgaza la caja haciéndola sonar débil o distante." },
-    { range: [250, 800], boost: "Ring / Armónico: Aumenta el tono 'boing' o resonancia metálica del casco.", cut: "Ring / Armónico: Limpia las resonancias molestas para que la caja suene más seca y controlada." },
-    { range: [800, 3000], boost: "Presencia (Bordón): Acerca la caja en la mezcla, pero puede chocar con las voces.", cut: "Presencia: Aleja la caja en el plano de profundidad." },
-    { range: [3000, 7000], boost: "Ataque / Crack: Realza el golpe agudo del baquetazo.", cut: "Ataque / Crack: Suaviza el impacto." },
-    { range: [7000, 24000], boost: "Aire / Snappy: Añade brillo extremo al bordón (snares). Cuidado con el sangrado de charles.", cut: "Aire: Quita el brillo moderno, dejándola más vintage." }
+    { range: [0, 150], boost: "Rumble: Estás subiendo ruido de pisadas y graves sucios.", cut: "Rumble: Práctica de primero de sonido: High Pass aquí para no ensuciarle el terreno al bajo." },
+    { range: [150, 250], boost: "Cuerpo (Body): Le da la 'gordura' a la caja.", cut: "Cuerpo: Dejas la caja sonando a juguete o muy lejos." },
+    { range: [250, 800], boost: "Armónico de parche (Ring): Resalta el tono 'boing' metálico del tambor. Cansa muy rápido.", cut: "Armónico: Cortar esto de forma quirúrgica es vital para que la caja suene seca y controlada." },
+    { range: [800, 3000], boost: "Presencia: Tira la caja a la cara del oyente, pero va a pegarse de hostias con la voz principal.", cut: "Presencia: Aleja la caja y la entierra detrás del cantante." },
+    { range: [3000, 7000], boost: "Ataque (Crack): El latigazo puro del golpe de baqueta.", cut: "Ataque: Ablanda mucho el impacto de la batería." },
+    { range: [7000, 24000], boost: "Bordón / Snappy: Levanta el chisporroteo de abajo de la caja, pero cuidado que te traes todos los platos con él.", cut: "Bordón: Apaga la caja, quitándole ese filo moderno." }
   ],
   voces: [
-    { range: [0, 100], boost: "Rumble / Plops: Exagera los golpes de aire en el micrófono (plosivas).", cut: "Rumble: Práctica obligatoria (High Pass) para limpiar graves." },
-    { range: [100, 300], boost: "Calidez / Mud: Añade cuerpo y proximidad, pero en exceso suena embarrado (muddy).", cut: "Calidez: Elimina el efecto proximidad, aclara la voz pero puede dejarla anémica." },
-    { range: [300, 1000], boost: "Caja de cartón / Boxy: Hace que la voz suene nasal o encajonada.", cut: "Boxy: Limpia resonancias nasales molestas." },
-    { range: [1000, 3000], boost: "Inteligibilidad / Nasal: Resalta las consonantes, puede sonar áspero o como un teléfono.", cut: "Inteligibilidad: Suaviza voces muy agresivas." },
-    { range: [3000, 6000], boost: "Presencia: La voz salta al frente de la mezcla. Exceso causa fatiga auditiva rápida.", cut: "Presencia: Aleja la voz y la entierra en la mezcla." },
-    { range: [6000, 9000], boost: "Sibilancia: Exagera las 'S' y 'T', resultando punzante.", cut: "Sibilancia: Actúa como de-esser manual, suavizando eses molestas." },
-    { range: [9000, 24000], boost: "Aire: Añade un brillo caro y moderno, sensación de 'aliento'.", cut: "Aire: Oscurece la voz." }
+    { range: [0, 100], boost: "Golpes de micro (Plops): Estás subiendo los golpetazos de viento del cantante en el micro.", cut: "Golpes: High Pass obligatorio. Hay que limpiar siempre esta zona de ruidos sordos." },
+    { range: [100, 300], boost: "Calidez / Efecto Proximidad: Da cuerpo y hace la voz íntima, pero si te pasas suena a que canta debajo de una manta.", cut: "Calidez: Adelgaza la voz. Útil para coros, peligroso para la voz principal." },
+    { range: [300, 1000], boost: "Boxy: Estás exagerando el sonido nasal, como si cantara dentro de un tubo.", cut: "Boxy: Cortar por aquí suele quitar la congestión nasal y abrir el tono." },
+    { range: [1000, 3000], boost: "Ataque / Teléfono: La voz corta la mezcla como un cuchillo, pero puede volverse súper agresiva.", cut: "Ataque: Retrasa la voz en la mezcla y le quita agresividad." },
+    { range: [3000, 6000], boost: "Presencia: La zona donde el oído humano es más sensible. Tira la voz al frente, pero agota escucharla mucho rato.", cut: "Presencia: Esconde la voz en la música." },
+    { range: [6000, 9000], boost: "Sibilancia: Has convertido al cantante en una serpiente (Ssss). Cuidado con esta zona.", cut: "Sibilancia: Funciona como un De-Esser manual. Suaviza esas eses que taladran." },
+    { range: [9000, 24000], boost: "Aire: Le da ese aliento y brillo caro de producción pop top.", cut: "Aire: Hace que la voz suene vieja o encerrada." }
   ],
   bajo: [
-    { range: [0, 60], boost: "Sub: Añade cimientos, pero puede comerse todo el headroom.", cut: "Sub: Deja espacio al bombo en sistemas grandes." },
-    { range: [60, 200], boost: "Cuerpo principal: Da peso y fundamenta las notas.", cut: "Cuerpo: Adelgaza drásticamente el bajo." },
-    { range: [200, 500], boost: "Mud: Suele chocar fuertemente con la calidez de las guitarras y el bombo.", cut: "Mud: Práctica estándar para ganar claridad en el Low-End." },
-    { range: [500, 1500], boost: "Ataque de dedos / Púa: Ayuda a que el bajo se entienda en altavoces pequeños.", cut: "Ataque: Deja un sonido más profundo y dubby." },
-    { range: [1500, 5000], boost: "Trasteo / Cuerda: Resalta mucho el ruido metálico de los trastes.", cut: "Trasteo: Suaviza la ejecución." },
-    { range: [5000, 24000], boost: "Siseo: Aumenta el ruido de amplificador sin aportar tono musical.", cut: "Siseo: Limpieza estándar (Low Pass)." }
+    { range: [0, 60], boost: "Sub: Añade peso masivo, pero revienta los altavoces pequeños y te chupa toda la energía de la mezcla.", cut: "Sub: Muy útil para dejar que el bombo gane la guerra de los graves." },
+    { range: [60, 200], boost: "Cuerpo: Aquí viven las notas del bajo, le da fundamentación.", cut: "Cuerpo: Estás aniquilando el bajo de la canción." },
+    { range: [200, 500], boost: "Barro (Mud): Hace que la mezcla suene turbia y choca con todo.", cut: "Barro: Vaciar aquí un poco es el secreto para un bajo definido que se entienda bien." },
+    { range: [500, 1500], boost: "Ataque de púa / dedos: Fundamental para que el bajo se escuche en el móvil o en auriculares pequeños.", cut: "Ataque: Deja el bajo sonando súper redondo y de fondo (tipo Reggae/Dub)." },
+    { range: [1500, 5000], boost: "Trasteo: Realza el ruido puramente metálico de las cuerdas golpeando el mástil.", cut: "Trasteo: Limpia una ejecución muy sucia." },
+    { range: [5000, 24000], boost: "Siseo: Estás subiendo ruido del ampli, cero notas musicales.", cut: "Siseo: Low Pass de manual para limpiar ruido inútil." }
   ],
   guitarras: [
-    { range: [0, 100], boost: "Rumble: Ensucia los graves sin aportar musicalidad.", cut: "Rumble: Práctica obligatoria (High Pass) para dejar espacio al bajo y bombo." },
-    { range: [100, 250], boost: "Grosor (Chug): Da peso a las rítmicas palm-mute.", cut: "Grosor: Evita que choquen con el bajo eléctrico." },
-    { range: [250, 800], boost: "Mud / Boxy: Puede sonar a amplificador barato o encajonado.", cut: "Mud: Limpia y abre espacio para otros instrumentos." },
-    { range: [800, 2500], boost: "Mordida (Bite): La guitarra avanza en la mezcla, resalta los punteos.", cut: "Mordida: Suaviza el tono, ideal para guitarras rítmicas de fondo." },
-    { range: [2500, 5000], boost: "Harshness (Aspereza): Zona muy sensible para el oído humano. Fatiga rápido.", cut: "Harshness: Cortar aquí elimina el tono 'chicharra' de las distorsiones." },
-    { range: [5000, 24000], boost: "Fizz / Siseo: Realza el ruido blanco de los amplificadores de alta ganancia.", cut: "Fizz: Práctica estándar (Low Pass) para enfocar las guitarras eléctricas." }
+    { range: [0, 100], boost: "Graves sucios: Nadie quiere esto en unas guitarras.", cut: "Graves sucios: El corte más famoso de la historia (High Pass). Hay que dejar sitio al bajo." },
+    { range: [100, 250], boost: "Grosor (Chug): Da peso a las rítmicas de palm-mute metaleras.", cut: "Grosor: Afina demasiado la guitarra." },
+    { range: [250, 800], boost: "Cartón: Suena a ampli tapado con una manta.", cut: "Cartón: Limpieza estándar para ganar claridad y abrir hueco a la caja." },
+    { range: [800, 2500], boost: "Mordida (Bite): Saca el punteado hacia adelante en la cara del oyente.", cut: "Mordida: Suaviza la guitarra para hundirla y que no pelee con la voz." },
+    { range: [2500, 5000], boost: "Chicharra (Harshness): Sube ese sonido punzante y digital de distorsión mala.", cut: "Chicharra: Clásico corte quirúrgico para que las guitarras eléctricas no duelan al oírlas." },
+    { range: [5000, 24000], boost: "Siseo (Fizz): Levanta puro ruido blanco de la distorsión.", cut: "Siseo: Low Pass habitual para enfocar el tono de guitarras muy saturadas." }
   ],
   platos: [
-    { range: [0, 400], boost: "Sangrado de graves: Realza bombo y toms indeseados.", cut: "Sangrado: Limpieza extrema (High Pass) para dejar solo el brillo." },
-    { range: [400, 1500], boost: "Gong / Lata: Añade un tono acampanado u oscuro muy feo a los platos.", cut: "Lata: Limpia resonancias de la sala y del propio metal." },
-    { range: [1500, 5000], boost: "Aspereza: Los platos suenan hirientes y baratos.", cut: "Aspereza: Suaviza los crashes y el hi-hat fuertemente." },
-    { range: [5000, 10000], boost: "Brillo: Aumenta la definición de la baqueta sobre el ride/charles.", cut: "Brillo: Aleja la batería." },
-    { range: [10000, 24000], boost: "Aire (Wash): Aumenta el siseo y la 'cola' etérea de los platos.", cut: "Aire: Apaga los platos, oscureciendo toda la mezcla superior." }
+    { range: [0, 400], boost: "Sangrado: Realzas graves colados en los micros de los platos (bombo, caja, toms).", cut: "Sangrado: Limpieza súper bestia con High Pass. Dejas solo los agudos puros de los metales." },
+    { range: [400, 1500], boost: "Lata: Añade un sonido a chapa fea o campana.", cut: "Lata: Limpia armónicos que chocan con el resto de instrumentos musicales." },
+    { range: [1500, 5000], boost: "Aspereza: Hace que los platos te taladren el cerebro de lo hirientes que suenan.", cut: "Aspereza: Un buen recorte aquí hace que los platos suenen grandes pero sedosos y agradables." },
+    { range: [5000, 10000], boost: "Definición: Realza el toque duro de la baqueta de madera contra el ride.", cut: "Definición: Aleja la batería en el espacio." },
+    { range: [10000, 24000], boost: "Aire: Ensancha esa cola brillante y etérea que queda flotando (el 'Wash').", cut: "Aire: Oscurece toda la batería, dejándola muy sorda y oscura." }
   ],
   drumbus: [
-    { range: [0, 100], boost: "Glue Subs: Añade peso masivo a toda la batería.", cut: "Subs: Adelgaza el groove general." },
-    { range: [100, 400], boost: "Boxy / Mud: Enturbia la batería entera.", cut: "Mud: Aclara todo el kit y mejora la separación de elementos." },
-    { range: [400, 3000], boost: "Ataque: Realza el golpe de las baquetas en caja y toms al unísono.", cut: "Ataque: Hundimiento de la batería en la mezcla." },
-    { range: [3000, 8000], boost: "Presencia: Aumenta la agresividad general de la batería y platos.", cut: "Presencia: Suaviza un kit demasiado agresivo." },
-    { range: [8000, 24000], boost: "Aire: Brillo hiperrealista en los platos y ambiente de sala.", cut: "Aire: Oscurece el bus maestro." }
+    { range: [0, 100], boost: "Peso total: Ensancha toda la batería de golpe, le da un tamaño gigante.", cut: "Peso: Le quitas la energía visceral al kit." },
+    { range: [100, 400], boost: "Grosor / Cartón: Suele empantanar toda la base rítmica.", cut: "Grosor: Bajar aquí un par de decibelios a toda la batería le da una claridad inmediata." },
+    { range: [400, 3000], boost: "Ataque general: Subes el impacto duro de cada tambor.", cut: "Ataque: Haces que la batería suene menos agresiva y más acompañante." },
+    { range: [3000, 8000], boost: "Presencia: Toda la batería gana brillo, pero los platos pueden descontrolarse rápido.", cut: "Presencia: Útil si los micros overhead están muy estridentes." },
+    { range: [8000, 24000], boost: "Aire global: Abre la zona de arriba y saca la reverberación de la sala.", cut: "Aire global: Deja una batería seca y oscura." }
   ],
   sala: [
-    { range: [0, 200], boost: "Boom de sala: Aumenta la sensación de tamaño del cuarto, puede embarrar.", cut: "Boom: Limpia el Low-End de la reverberación natural." },
-    { range: [200, 800], boost: "Boxiness: Realza resonancias modales indeseadas de una habitación cuadrada.", cut: "Boxiness: Limpia y hace que la sala suene más cara y difusa." },
-    { range: [800, 4000], boost: "Presencia de sala: Hace que el rebote suene más corto y directo.", cut: "Presencia: Aleja la sala, haciéndola sonar más profunda y oscura." },
-    { range: [4000, 24000], boost: "Splash: Resalta el rebote brillante de los platos en las paredes.", cut: "Splash: Crea un ambiente más oscuro y vintage tipo 'cinta'." }
+    { range: [0, 200], boost: "Boom: Hace que la sala parezca enorme, pero ensucia lo más grande.", cut: "Boom: Quitas graves del rebote para tener una reverb limpia y controlable." },
+    { range: [200, 800], boost: "Cajón: Realza resonancias raras del cuarto de grabación.", cut: "Cajón: Bajas eso y de repente la habitación suena carísima." },
+    { range: [800, 4000], boost: "Claridad: Acercas el eco y la bofetada corta de la pared.", cut: "Claridad: Oscureces la sala, dándole mucha más profundidad." },
+    { range: [4000, 24000], boost: "Splash: Subes el rebote estridente de los platos.", cut: "Splash: Reverb muy oscura y sedosa, onda vintage." }
   ],
   generic: [
-    { range: [0, 150], boost: "Graves/Cuerpo: Añade peso.", cut: "Graves/Cuerpo: Reduce el peso." },
-    { range: [150, 600], boost: "Medios graves (Mud): Puede enturbiar.", cut: "Medios graves (Mud): Aclara el sonido." },
-    { range: [600, 3000], boost: "Medios/Presencia: Añade ataque.", cut: "Medios/Presencia: Retira agresividad." },
-    { range: [3000, 8000], boost: "Agudos (Harshness): Añade brillo y mordida.", cut: "Agudos (Harshness): Suaviza el tono." },
-    { range: [8000, 24000], boost: "Aire: Brillo muy agudo.", cut: "Aire: Oscurece ligeramente." }
+    { range: [0, 150], boost: "Cuerpo/Graves: Estás engordando el sonido por abajo.", cut: "Graves: Estás quitando peso y limpiando." },
+    { range: [150, 600], boost: "Zona media-baja (Mud): Estás añadiendo congestión.", cut: "Zona media-baja: Estás limpiando barro para dar claridad." },
+    { range: [600, 3000], boost: "Medios (Ataque): Estás sacando el sonido a la cara.", cut: "Medios: Estás hundiendo el sonido hacia atrás." },
+    { range: [3000, 8000], boost: "Presencia (Harshness): Estás dándole filo y agresividad.", cut: "Presencia: Estás suavizando el tono." },
+    { range: [8000, 24000], boost: "Aire: Estás abriendo los extremos agudos.", cut: "Aire: Estás apagando u oscureciendo el brillo final." }
   ]
 };
 
@@ -435,7 +436,7 @@ const ContextMatrix = {
  * audioContext contiene el nombre de la pista actual (ej. "Bombo Estudio (Seco)") para feedback dinámico.
  */
 export function analyzeProPractices(target, guess, audioContext = "") {
-  const fallbackMessage = "✅ Práctica Segura: Los parámetros seleccionados mantienen la coherencia de fase y dinámica dentro de márgenes musicales. Ajuste óptimo para ecualización general.";
+  const fallbackMessage = "Buen ajuste. Has dado en la tecla sin hacer salvajadas con la ganancia. Esto es un ajuste estándar de mezcla que no te va a dar problemas técnicos.";
   if (!guess) {
     return {
       message: fallbackMessage,
@@ -461,43 +462,49 @@ export function analyzeProPractices(target, guess, audioContext = "") {
   let contextMatrixFeedback = null;
   const audioCtxLower = audioContext.toLowerCase();
   
-  if (audioCtxLower.includes('bombo')) {
-    const bands = ContextMatrix.bombo;
-    for (const band of bands) {
-      if (guessFreq >= band.range[0] && guessFreq < band.range[1]) {
-        if (guessGain > 0.5) {
-          contextMatrixFeedback = `🎧 Contexto (Bombo - Boost): ${band.boost}`;
-        } else if (guessGain < -0.5) {
-          contextMatrixFeedback = `🎧 Contexto (Bombo - Cut): ${band.cut}`;
-        }
-        break;
+  // Buscar en la matriz de contexto para el feedback constructivo
+  let matchedBands = ContextMatrix.generic;
+  for (const key of Object.keys(ContextMatrix)) {
+    if (audioCtxLower.includes(key)) {
+      matchedBands = ContextMatrix[key];
+      break;
+    }
+  }
+
+  for (const band of matchedBands) {
+    if (guessFreq >= band.range[0] && guessFreq < band.range[1]) {
+      if (guessGain > 0.5) {
+        contextMatrixFeedback = `🎧 Impacto en Mezcla: ${band.boost}`;
+      } else if (guessGain < -0.5) {
+        contextMatrixFeedback = `🎧 Impacto en Mezcla: ${band.cut}`;
       }
+      break;
     }
   }
 
   // Condición 1 (High Pass vs Low Shelf en graves)
   if ((targetType === 'highpass' && guessType === 'lowshelf') || (targetType === 'lowshelf' && guessType === 'highpass')) {
-    message = "⚠️ Corte vs. Atenuación: Visualmente parecidos, pero acústicamente opuestos. Un High Pass altera severamente la fase en la frecuencia de corte, lo que te causará cancelaciones si procesas esta pista en paralelo (ej. compresión paralela de bombo/bajo). Usa el Low Shelf si solo quieres 'vaciar' un poco los graves sin destrozar la relación de fase.";
+    message = "⚠️ Corte vs. Atenuación: Ojo con usar un High Pass por inercia si solo sobran un poco de graves. El High Pass es muy agresivo y en graves puede crearte problemas raros si luego comprimes. Usa el Low Shelf si solo quieres bajar el peso un par de decibelios.";
   }
   // Condición 2: Q vs Ganancia (La relación matemática)
   else if ((guessType === 'peaking' || guessType === 'bell') && guessGain > 6 && guessQ < 0.7) {
-    message = "⚠️ Física de Mezcla: Estás aplicando más de 6dB de ganancia con un Q muy ancho (por debajo de 0.7). Estás subiendo la energía de casi media octava a la vez. Esto colapsará tu bus maestro. Realces anchos requieren poca ganancia; realces estrechos toleran más.";
+    message = "⚠️ Mano de hierro: Estás metiendo más de 6 decibelios con una campana anchísima. Has levantado de golpe casi media canción. Esos realces tan gordos se comen el volumen general y ensucian. Realces anchos siempre con muy poca ganancia.";
   }
   // Condición 3: Enmascaramiento vs Realce (La alternativa Pro)
   else if ((guessType === 'peaking' || guessType === 'bell') && guessGain > 8 && guessFreq < 300) {
-    message = "⚠️ Psicoacústica: Un realce tan agresivo en graves (mud/barro) suele ser síntoma de intentar que un instrumento 'corte' en la mezcla a base de fuerza bruta. Es mejor buscar qué otro instrumento le está tapando en esa misma frecuencia y aplicarle un pequeño corte.";
+    message = "⚠️ Sutileza cero: Subir casi 10dB en graves suele ser síntoma de que otra pista te está tapando (un bajo, otro bombo...). En lugar de forzar a lo bestia esta pista, busca quién estorba y bájale a él. Ganarás claridad.";
   }
   // Condición 4 (Campanas muy estrechas - Q > 3.0)
-  else if ((guessType === 'peaking' || guessType === 'bell') && guessQ > 3.0) {
-    message = "⚠️ Peligro de 'Ringing' (Resonancia temporal): Un filtro tan estrecho se comporta como una campana literal: sigue sonando después de que el sonido original pare. Si usas esto en transitorios rápidos (cajas, bombos, percusión), destruirás su 'pegada' (punch). Úsalo solo para eliminar resonancias estacionarias muy concretas.";
+  else if ((guessType === 'peaking' || guessType === 'bell') && guessQ > 3.0 && guessGain > 3) {
+    message = "⚠️ Campana demasiado fina: Una Q tan estrecha suena literal como un silbato metálico. Si la usas en un instrumento de golpe rápido (bombo/caja) te cargas la pegada. Resérvalas solo para atenuar resonancias súper concretas que chillen mucho.";
   }
   // Condición 5 (Realces agresivos - Gain > 9dB)
   else if (guessGain > 9.0) {
-    message = "⚠️ Enmascaramiento Severo: Estás inyectando más de 9dB de energía pura. En el mundo analógico esto saturaría el previo; en digital, te comes el headroom (techo dinámico). Es casi siempre mejor atenuar las frecuencias molestas que realzar tan brutalmente, ya que este nivel de ganancia ahogará al resto de instrumentos de la mezcla.";
+    message = "⚠️ Estás reventando el medidor: Subir casi 10dB es una animalada. Probablemente estés ahogando al resto de instrumentos en esa frecuencia y reventando el rojo del canal. Casi siempre es más elegante buscar lo que sobra y atenuarlo.";
   }
   // Condición 6 (Filtros en Extremos - High/Low Pass fuera de rango)
   else if ((guessType === 'highpass' && guessFreq > 1000) || (guessType === 'lowpass' && guessFreq < 1000)) {
-    message = "⚠️ Corte Destructivo: Estás usando un filtro de corte total en el rango medio del espectro. Acabas de amputar la información fundamental de la señal. Esto solo se usa para efectos creativos (sonido de 'teléfono' o 'radio'), no para ecualización correctiva o musical.";
+    message = "⚠️ Mutilación total: Acabas de cortar todo el rango útil de frecuencias. Estás dejando el audio sonando a radio vieja. Salvo que busques ese efecto raro adrede, esto no se usa para mezclar un instrumento en su sitio.";
   }
   // Fallback
   else {
@@ -507,12 +514,10 @@ export function analyzeProPractices(target, guess, audioContext = "") {
 
   // Inject Context Matrix feedback
   if (contextMatrixFeedback) {
-    // If it's the fallback, entirely replace it with our matrix context
     if (message === fallbackMessage) {
       message = contextMatrixFeedback;
-      isWarning = false; // It's informative pedagogical feedback, not necessarily a penalty warning
+      isWarning = false;
     } else {
-      // If there's an active warning (e.g. Ringing, Destructive Cut), append the context for double learning
       message = `${message} | ${contextMatrixFeedback}`;
     }
   }
