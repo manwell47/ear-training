@@ -278,18 +278,29 @@ export class Visualizer {
   }
 
   gainToY(gainDb) {
-    const MAX_DB = 18;
-    const MIN_DB = -18;
-    const RANGE_DB = MAX_DB - MIN_DB;
-    return this.height - ((gainDb - MIN_DB) / RANGE_DB) * this.height;
+    const RTA_TOP_DBFS = 0.0;
+    const RTA_BOTTOM_DBFS = -85.0;
+    const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
+    const pixelsPerDb = this.height / RTA_RANGE;
+    
+    const eqZeroDbFS = -18.0;
+    const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
+    const eqZeroY = this.height - normEqZero * this.height;
+
+    return eqZeroY - (gainDb * pixelsPerDb);
   }
 
   yToGain(y) {
-    const MAX_DB = 18;
-    const MIN_DB = -18;
-    const RANGE_DB = MAX_DB - MIN_DB;
-    const norm = (this.height - y) / this.height;
-    return MIN_DB + norm * RANGE_DB;
+    const RTA_TOP_DBFS = 0.0;
+    const RTA_BOTTOM_DBFS = -85.0;
+    const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
+    const pixelsPerDb = this.height / RTA_RANGE;
+    
+    const eqZeroDbFS = -18.0;
+    const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
+    const eqZeroY = this.height - normEqZero * this.height;
+
+    return (eqZeroY - y) / pixelsPerDb;
   }
 
   freqGainToPixel(freq, gain) {
@@ -443,24 +454,30 @@ export class Visualizer {
       }
     });
 
-    // 2. 0dB Reference Line
+    // 2. Escala global del RTA fija a 0 .. -85 dBFS
+    const RTA_TOP_DBFS = 0.0;
+    const RTA_BOTTOM_DBFS = -85.0;
+    const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
+    
+    // Coordenada Y exacta para la línea nominal de 0dB del ecualizador (anclada a -18 dBFS)
+    const eqZeroDbFS = -18.0;
+    const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
+    this.eqZeroY = this.height - normEqZero * this.height; // Guardamos para usar en otras partes
+
+    // 2. 0dB Reference Line (anclada matemáticamente a -18 dBFS)
     ctx.strokeStyle = 'rgba(0, 242, 254, 0.35)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(0, this.height / 2);
-    ctx.lineTo(this.width, this.height / 2);
+    ctx.moveTo(0, this.eqZeroY);
+    ctx.lineTo(this.width, this.eqZeroY);
     ctx.stroke();
 
     const currentAudioSource = this.audioEngine ? (this.audioEngine.currentTrackId || this.audioEngine.currentBufferName || '') : '';
     const isSynthetic = (currentAudioSource.toLowerCase().includes('pink') || currentAudioSource.toLowerCase().includes('white'));
 
-    const RTA_TOP_DBFS = 30.0;
-    const RTA_BOTTOM_DBFS = -66.0; // Rango de 96dB. Centro exacto: (30 - 66) / 2 = -18 dBFS
-    const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
-    
     ctx.textAlign = 'left';
-    // Escala dinámica basada en el nuevo rango centrado en -18 dBFS
-    const rtaSteps = [20, 10, 0, -10, -20, -30, -40, -50, -60];
+    // Escala estática absoluta
+    const rtaSteps = [0, -10, -20, -30, -40, -50, -60, -70, -80];
     
     rtaSteps.forEach(trueDb => {
       const visualDb = trueDb;
@@ -618,17 +635,16 @@ export class Visualizer {
       }
       
       // --- 2. OFFSET DE CALIBRACIÓN FFT (CERO INVENTOS) ---
-      // Compensa la dilución de energía del FFT (10*log10(4096) = 36.12 dB)
-      val_dB += 36.12;
+      // El usuario indicó que su Ruido Blanco está calibrado a -18 dBFS.
+      // Densidad matemática del bin de ruido blanco = -57.3 dBFS.
+      // Offset exacto para que dibuje en -18 dBFS: 57.3 - 18.0 = +39.3 dB.
+      val_dB += 39.3;
 
       if (val_dB === -Infinity || Number.isNaN(val_dB)) val_dB = -120.0;
 
-      // --- 3. OPCIÓN A (ESTILO FABFILTER) CON ANCLAJE EN -18 dBFS ---
-      // El canvas del filtro EQ tiene 0dB en el centro geométrico.
-      // El usuario solicitó que el centro coincida con -18 dBFS (nivel de calibración de su ruido).
-      // Configuramos RTA Top a +30 y Bottom a -66 (Rango = 96dB). Centro = (30 - 66)/2 = -18 dBFS.
-      const RTA_TOP_DBFS = 30.0;
-      const RTA_BOTTOM_DBFS = -66.0;
+      // Escala global del RTA fija a 0 .. -85 dBFS
+      const RTA_TOP_DBFS = 0.0;
+      const RTA_BOTTOM_DBFS = -85.0;
       const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
 
       // Aplicar Tilt opcional (0.0 para White Noise plano, +3.0 para Pink plano)
@@ -923,9 +939,16 @@ export class Visualizer {
       return;
     }
 
-    // 3. Coordenada Y que representa la línea de 0dB
-    const zeroDbNorm = (0 + CALIBRATION_OFFSET - MIN_DB) / RANGE_DB;
-    const zeroDbY = this.height - zeroDbNorm * this.height;
+    // Relación de píxeles por dB en la escala global del RTA
+    const RTA_TOP_DBFS = 0.0;
+    const RTA_BOTTOM_DBFS = -85.0;
+    const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
+    const pixelsPerDb = this.height / RTA_RANGE;
+
+    // 3. Coordenada Y de la línea nominal de 0dB (calculada para -18 dBFS)
+    const eqZeroDbFS = -18.0;
+    const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
+    const zeroDbY = this.height - normEqZero * this.height;
 
     // 4. Polígono que nace de la línea de 0dB, sigue los puntos calculados y vuelve a 0dB
     ctx.beginPath();
@@ -934,7 +957,9 @@ export class Visualizer {
     for (let x = 0; x < numPixels; x++) {
       const mag = Math.max(1e-5, magResponse[x]);
       const dB = 20 * Math.log10(mag);
-      let y = this.height - ((dB + CALIBRATION_OFFSET - MIN_DB) / RANGE_DB) * this.height;
+      
+      // La coordenada Y final se desplaza desde eqZeroY según la ganancia del filtro y los pixels por dB
+      let y = zeroDbY - (dB * pixelsPerDb);
       y = Math.max(0, Math.min(this.height, y));
       ctx.lineTo(x, y);
     }
@@ -1021,7 +1046,14 @@ export class Visualizer {
 
       const normPhase = phaseRad / Math.PI; // -1.0 to +1.0
 
-      let y = (this.height / 2) - normPhase * (this.height * 0.38);
+      const RTA_TOP_DBFS = 0.0;
+      const RTA_BOTTOM_DBFS = -85.0;
+      const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
+      const eqZeroDbFS = -18.0;
+      const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
+      const zeroDbY = this.height - normEqZero * this.height;
+
+      let y = zeroDbY - normPhase * (this.height * 0.38);
       y = Math.max(0, Math.min(this.height, y));
 
       if (!started) {
