@@ -454,13 +454,13 @@ export class Visualizer {
     const currentAudioSource = this.audioEngine ? (this.audioEngine.currentTrackId || this.audioEngine.currentBufferName || '') : '';
     const isSynthetic = (currentAudioSource.toLowerCase().includes('pink') || currentAudioSource.toLowerCase().includes('white'));
 
-    const RTA_TOP_DBFS = 0.0;
-    const RTA_BOTTOM_DBFS = -85.0;
+    const RTA_TOP_DBFS = 30.0;
+    const RTA_BOTTOM_DBFS = -66.0; // Rango de 96dB. Centro exacto: (30 - 66) / 2 = -18 dBFS
     const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
     
     ctx.textAlign = 'left';
-    // Escala estática absoluta
-    const rtaSteps = [0, -10, -20, -30, -40, -50, -60, -70, -80];
+    // Escala dinámica basada en el nuevo rango centrado en -18 dBFS
+    const rtaSteps = [20, 10, 0, -10, -20, -30, -40, -50, -60];
     
     rtaSteps.forEach(trueDb => {
       const visualDb = trueDb;
@@ -593,78 +593,42 @@ export class Visualizer {
 
       let val_dB = -100;
 
-      if (isSynthetic) {
-        // --- COMPORTAMIENTO ORIGINAL LEGACY PARA RUIDO SINTÉTICO ("Déjalos como antes") ---
-        if (idxRight <= idxLeft + 1) {
-            let exactIndex = (freqCenter / nyquist) * frequencyData.length;
-            let idx1 = Math.floor(exactIndex);
-            let idx2 = Math.min(idx1 + 1, frequencyData.length - 1);
-            let fraction = exactIndex - idx1;
-            let v1 = isFinite(frequencyData[idx1]) ? frequencyData[idx1] : -120;
-            let v2 = isFinite(frequencyData[idx2]) ? frequencyData[idx2] : -120;
-            val_dB = v1 + fraction * (v2 - v1);
-        } else {
-            let sum = 0;
-            let count = 0;
-            for (let i = idxLeft; i <= idxRight; i++) {
-                let v = frequencyData[i];
-                if (isFinite(v) && v > -120) {
-                    sum += Math.pow(10, v / 10);
-                    count++;
-                }
-            }
-            val_dB = (count > 0) ? 10 * Math.log10(sum / count) : -120;
-        }
-        
-        // Compensación calibrada rigurosamente para alinear la gráfica con el Total RMS Energy matemáticamente exacto.
-        // Ruido Blanco RMS Real: -21.25 dBFS (Requiere +36.05 dB de offset desde el promedio del bin)
-        // Ruido Rosa RMS Real: -28.60 dBFS (Requiere +43.10 dB de offset desde el promedio del bin)
-        let noiseOffset = 33.1; // Default
-        const trackId = this.audioEngine ? (this.audioEngine.currentTrackId || '') : '';
-        if (trackId === 'pink_noise' || trackId === 'pink-noise') {
-            noiseOffset = 43.10; 
-        } else if (trackId === 'white_noise' || trackId === 'white-noise') {
-            noiseOffset = 36.05; 
-        }
-        val_dB += noiseOffset; 
+      // --- 1. DENSIDAD ESPECTRAL ESTÁNDAR (Para Música y Ruido) ---
+      if (idxRight <= idxLeft + 1) {
+          // Sub-graves: Ancho de banda de píxel < 1 bin. Interpolación lineal de energía
+          let exactIndex = (freqCenter / nyquist) * frequencyData.length;
+          let idx1 = Math.floor(exactIndex);
+          let idx2 = Math.min(idx1 + 1, frequencyData.length - 1);
+          let fraction = exactIndex - idx1;
+          let v1 = isFinite(frequencyData[idx1]) ? frequencyData[idx1] : -120;
+          let v2 = isFinite(frequencyData[idx2]) ? frequencyData[idx2] : -120;
+          val_dB = v1 + fraction * (v2 - v1);
       } else {
-        // --- COMPORTAMIENTO DE ALTA PRECISIÓN PARA MÚSICA/STEMS ---
-        // Calcula la energía fraccional real de la banda para levantar el hi-hat (agudos dispersos)
-        // y toma el Peak absoluto para proteger la amplitud máxima del bombo (graves concentrados).
-        let exactLeft = (freqLeft / nyquist) * frequencyData.length;
-        let exactRight = (freqRight / nyquist) * frequencyData.length;
-        
-        let sum = 0;
-        let peak = -120;
-        
-        for (let i = Math.floor(exactLeft); i <= Math.ceil(exactRight); i++) {
-            if (i >= 0 && i < frequencyData.length) {
-                let v = frequencyData[i];
-                if (isFinite(v) && v > -120) {
-                    let overlapStart = Math.max(exactLeft, i);
-                    let overlapEnd = Math.min(exactRight, i + 1);
-                    let overlap = Math.max(0, overlapEnd - overlapStart);
-                    
-                    if (overlap > 0) {
-                        sum += overlap * Math.pow(10, v / 10);
-                        if (v > peak) peak = v;
-                    }
-                }
-            }
-        }
-        
-        let band_energy_dB = (sum > 0) ? 10 * Math.log10(sum) : -120;
-        
-        // El híbrido mágico: Garantiza que un transitorio rápido muestre su pico máximo real, 
-        // pero permite que los agudos se sumen para volverse visibles. No requiere offset ni tilt.
-        val_dB = Math.max(peak, band_energy_dB);
+          // Graves a Agudos: Promedio de densidad espectral por píxel
+          let sum = 0;
+          let count = 0;
+          for (let i = idxLeft; i <= idxRight; i++) {
+              let v = frequencyData[i];
+              if (isFinite(v) && v > -120) {
+                  sum += Math.pow(10, v / 10);
+                  count++;
+              }
+          }
+          val_dB = (count > 0) ? 10 * Math.log10(sum / count) : -120;
       }
+      
+      // --- 2. OFFSET DE CALIBRACIÓN FFT (CERO INVENTOS) ---
+      // Compensa la dilución de energía del FFT (10*log10(4096) = 36.12 dB)
+      val_dB += 36.12;
 
       if (val_dB === -Infinity || Number.isNaN(val_dB)) val_dB = -120.0;
 
-      // Mapeo unificado y fiel a dBFS real
-      const RTA_TOP_DBFS = 0.0;
-      const RTA_BOTTOM_DBFS = -85.0;
+      // --- 3. OPCIÓN A (ESTILO FABFILTER) CON ANCLAJE EN -18 dBFS ---
+      // El canvas del filtro EQ tiene 0dB en el centro geométrico.
+      // El usuario solicitó que el centro coincida con -18 dBFS (nivel de calibración de su ruido).
+      // Configuramos RTA Top a +30 y Bottom a -66 (Rango = 96dB). Centro = (30 - 66)/2 = -18 dBFS.
+      const RTA_TOP_DBFS = 30.0;
+      const RTA_BOTTOM_DBFS = -66.0;
       const RTA_RANGE = RTA_TOP_DBFS - RTA_BOTTOM_DBFS;
 
       // Aplicar Tilt opcional (0.0 para White Noise plano, +3.0 para Pink plano)
@@ -746,28 +710,34 @@ export class Visualizer {
       }
     }
 
-    // --- SUAVIZADO ESPACIAL PREMIUM (SOLO PARA RUIDO) ---
-    // Elimina la apariencia "serrada" o de "picos" debida a la interpolación lineal 
-    // de escasos bins del FFT en frecuencias sub-graves.
-    if (isSynthetic) {
-        let spatialSmoothY = new Float32Array(width);
-        // Ventana de suavizado espacial de 1/12 de octava visual (aprox 12 píxeles)
-        let windowSize = Math.max(2, Math.floor(width * 0.0075)); 
-        for (let x = 0; x < width; x++) {
-            let sum = 0;
-            let count = 0;
-            for (let w = -windowSize; w <= windowSize; w++) {
-                let idx = x + w;
-                if (idx >= 0 && idx < width) {
-                    sum += pathY[idx];
-                    count++;
-                }
+    // --- SUAVIZADO ESPACIAL (ANTI-ALIASING FFT EN GRAVES) ---
+    // Elimina la apariencia "serrada" en bajas frecuencias donde la resolución lineal de píxeles
+    // excede la resolución logarítmica de bins del FFT (8192 no basta para sub-graves).
+    // Aplicamos una media móvil (Moving Average) en el eje X, solo en bajas frecuencias.
+    let spatialSmoothY = new Float32Array(width);
+    // Ventana de suavizado espacial dinámica (más grande cuanto más a la izquierda)
+    let windowSize = Math.max(2, Math.floor(width * 0.0075)); 
+    for (let x = 0; x < width; x++) {
+        let sum = 0;
+        let count = 0;
+        for (let w = -windowSize; w <= windowSize; w++) {
+            let idx = x + w;
+            if (idx >= 0 && idx < width) {
+                sum += pathY[idx];
+                count++;
             }
-            spatialSmoothY[x] = sum / count;
         }
-        for (let x = 0; x < width; x++) {
-            pathY[x] = spatialSmoothY[x];
+        spatialSmoothY[x] = sum / count;
+    }
+
+    // Crossfade: Aplicar 100% smoothing por debajo de 100Hz, 0% por encima de 400Hz.
+    for (let x = 0; x < width; x++) {
+        let freq = this.xToFreq(x);
+        let blend = 1.0;
+        if (freq > 100) {
+            blend = 1.0 - Math.min(1.0, (freq - 100) / 300); // 100Hz a 400Hz ramp
         }
+        pathY[x] = (spatialSmoothY[x] * blend) + (pathY[x] * (1.0 - blend));
     }
 
     // 1. Draw Peak Hold Trace (Back Layer) - Only for acoustic material to avoid clutter
