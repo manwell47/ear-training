@@ -69,13 +69,13 @@ export class AudioEngine {
       this.inputGainNode.gain.setValueAtTime(1.0, this.ctx.currentTime);
 
       this.analyser = this.ctx.createAnalyser();
-      this.analyser.fftSize = 8192; // Premium balance between frequency and time resolution
+      this.analyser.fftSize = 32768; // Max resolution for smooth low-end response (1.3Hz per bin)
       this.analyser.smoothingTimeConstant = 0.0; // Zero smoothing! We handle ballistics in Visualizer
       this.analyser.minDecibels = -140;
       this.analyser.maxDecibels = 0;
 
       this.preAnalyser = this.ctx.createAnalyser();
-      this.preAnalyser.fftSize = 8192;
+      this.preAnalyser.fftSize = 32768;
       this.preAnalyser.smoothingTimeConstant = 0.0;
       this.preAnalyser.minDecibels = -140;
       this.preAnalyser.maxDecibels = 0;

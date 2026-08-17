@@ -631,9 +631,9 @@ export class Visualizer {
       
       // --- 2. OFFSET DE CALIBRACIÓN FFT (CERO INVENTOS) ---
       // El usuario indicó que su Ruido Blanco está calibrado a -18 dBFS.
-      // Observamos empíricamente que con 39.3 quedaba en -34 dBFS (-16 dB de diferencia).
-      // Por tanto, el offset correcto para la ventana actual del motor es 55.3 dB.
-      val_dB += 55.3;
+      // Observamos empíricamente que con 55.3 quedaba en -30 dBFS (-12 dB de diferencia).
+      // Por tanto, el offset final exacto es 67.3 dB.
+      val_dB += 67.3;
 
       if (val_dB === -Infinity || Number.isNaN(val_dB)) val_dB = -120.0;
 
