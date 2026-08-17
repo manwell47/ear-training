@@ -622,8 +622,8 @@ export class Visualizer {
       if (val_dB === -Infinity || Number.isNaN(val_dB)) val_dB = -120.0;
 
       // Fixed Calibration (replaces crazy dancing dynamic offset)
-      // FFT Dispersion Compensation (~33.1 dB for 8192 bins)
-      val_dB += 33.1;
+      // FFT Dispersion Compensation removed: WebAudio getFloatFrequencyData is already normalized.
+      // val_dB += 33.1; // Eliminado para que el nivel coincida con la escala dBFS real
 
       // Mapeo unificado y fiel a dBFS real (para todo tipo de fuentes)
       const RTA_TOP_DBFS = 0.0;

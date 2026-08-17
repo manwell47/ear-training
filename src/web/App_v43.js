@@ -573,7 +573,7 @@ export class App {
       });
       transportScrub.addEventListener('input', (e) => {
           const pct = parseFloat(e.target.value);
-          if (this.audio) this.audio.seek(pct);
+          if (this.audio) this.audio.scrubTo(pct);
       });
     }
 
@@ -732,23 +732,29 @@ export class App {
       
       const muteBtn = document.createElement('button');
       const isInitiallyMuted = this.audio.stemStates && this.audio.stemStates[stem.id] ? this.audio.stemStates[stem.id].muted : false;
-      muteBtn.className = `btn btn-sm ${isInitiallyMuted ? 'btn-active' : ''}`;
+      muteBtn.className = `btn btn-sm btn-mute ${isInitiallyMuted ? 'active' : ''}`;
       muteBtn.textContent = 'M';
+      
+      const soloBtn = document.createElement('button');
+      const isInitiallySolo = this.audio.stemStates && this.audio.stemStates[stem.id] ? this.audio.stemStates[stem.id].solo : false;
+      soloBtn.className = `btn btn-sm btn-solo ${isInitiallySolo ? 'active' : ''}`;
+      soloBtn.textContent = 'S';
+
       muteBtn.addEventListener('click', () => {
         this.audio.setStemState(stem.id, 'mute');
         const isMuted = this.audio.stemStates[stem.id].muted;
-        muteBtn.className = `btn btn-sm ${isMuted ? 'btn-active' : ''}`;
+        muteBtn.className = `btn btn-sm btn-mute ${isMuted ? 'active' : ''}`;
+        const isSolo = this.audio.stemStates[stem.id].solo;
+        soloBtn.className = `btn btn-sm btn-solo ${isSolo ? 'active' : ''}`;
       });
       controlsRow.appendChild(muteBtn);
 
-      const soloBtn = document.createElement('button');
-      const isInitiallySolo = this.audio.stemStates && this.audio.stemStates[stem.id] ? this.audio.stemStates[stem.id].solo : false;
-      soloBtn.className = `btn btn-sm ${isInitiallySolo ? 'btn-active' : ''}`;
-      soloBtn.textContent = 'S';
       soloBtn.addEventListener('click', () => {
         this.audio.setStemState(stem.id, 'solo');
         const isSolo = this.audio.stemStates[stem.id].solo;
-        soloBtn.className = `btn btn-sm ${isSolo ? 'btn-active' : ''}`;
+        soloBtn.className = `btn btn-sm btn-solo ${isSolo ? 'active' : ''}`;
+        const isMuted = this.audio.stemStates[stem.id].muted;
+        muteBtn.className = `btn btn-sm btn-mute ${isMuted ? 'active' : ''}`;
       });
       controlsRow.appendChild(soloBtn);
 
