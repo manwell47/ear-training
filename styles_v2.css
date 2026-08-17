@@ -532,6 +532,13 @@ html, body {
   box-shadow: 0 0 10px rgba(0, 210, 255, 0.2);
 }
 
+.btn-hardware.active {
+  background: #252838;
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+}
+
 /* Bloque Central (Dashboard de Estadísticas Sub-Grid 4 Columnas) */
 .results-block-center {
   display: grid;

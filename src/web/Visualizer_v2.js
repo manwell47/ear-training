@@ -605,15 +605,29 @@ export class Visualizer {
         let v2 = isFinite(frequencyData[idx2]) ? frequencyData[idx2] : -120;
         val_dB = v1 + fraction * (v2 - v1);
       } else {
-        // Pixel abarca varios bins: Tomar la Amplitud Máxima (Peak) para que la gráfica refleje la verdadera energía del pico
-        let max_v = -120;
-        for (let i = idxLeft; i <= idxRight; i++) {
-            let v = frequencyData[i];
-            if (isFinite(v) && v > max_v) {
-                max_v = v;
+        if (isSynthetic) {
+            // Pixel abarca varios bins: Suma RMS (promedio de energía) para ruido sintético (Mantiene el ruido rosa/blanco plano/estable)
+            let sum = 0;
+            let count = 0;
+            for (let i = idxLeft; i <= idxRight; i++) {
+                let v = frequencyData[i];
+                if (isFinite(v) && v > -120) {
+                    sum += Math.pow(10, v / 10);
+                    count++;
+                }
             }
+            val_dB = (count > 0) ? 10 * Math.log10(sum / count) : -120;
+        } else {
+            // Pixel abarca varios bins: Tomar la Amplitud Máxima (Peak) para archivos de audio (Captura la verdadera energía del pico)
+            let max_v = -120;
+            for (let i = idxLeft; i <= idxRight; i++) {
+                let v = frequencyData[i];
+                if (isFinite(v) && v > max_v) {
+                    max_v = v;
+                }
+            }
+            val_dB = max_v;
         }
-        val_dB = max_v;
       }
 
       if (val_dB === -Infinity || Number.isNaN(val_dB)) val_dB = -120.0;

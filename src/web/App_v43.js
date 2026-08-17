@@ -624,22 +624,22 @@ export class App {
     
     if (pBtnListenTarget) {
       pBtnListenTarget.addEventListener('click', () => {
-        this.audio.setRoute('A');
-        this.updateABButtons('A');
+        this.audio.setRoute('B'); // B = Target EQ
+        this.updateABButtons('B');
         this.hasListenedA = true;
       });
     }
     if (pBtnListenGuess) {
       pBtnListenGuess.addEventListener('click', () => {
-        this.audio.setRoute('B');
-        this.updateABButtons('B');
+        this.audio.setRoute('C'); // C = User Guess
+        this.updateABButtons('C');
         this.hasListenedB = true;
       });
     }
     if (pBtnListenFlat) {
       pBtnListenFlat.addEventListener('click', () => {
-         this.audio.setRoute('C');
-         this.updateABButtons('C');
+         this.audio.setRoute('A'); // A = Clean / Flat
+         this.updateABButtons('A');
       });
     }
 
@@ -815,19 +815,29 @@ export class App {
     const btnA = document.getElementById('btnRouteA');
     const btnB = document.getElementById('btnRouteB');
     const btnC = document.getElementById('btnRouteC');
+    const pTarget = document.getElementById('pBtnListenTarget');
+    const pGuess = document.getElementById('pBtnListenGuess');
+    const pFlat = document.getElementById('pBtnListenFlat');
 
     [btnA, btnB, btnC].forEach(btn => {
       if (btn) btn.classList.remove('active-off', 'active-on', 'active-guess', 'active-audition');
     });
 
-    if (activeRoute === 'A' && btnA) {
-      btnA.classList.add('active-off');
-    } else if (activeRoute === 'B' && btnB) {
-      btnB.classList.add('active-on');
-    } else if (activeRoute === 'C' && btnC) {
-      btnC.classList.add('active-guess');
+    [pTarget, pGuess, pFlat].forEach(btn => {
+      if (btn) btn.classList.remove('active');
+    });
+
+    if (activeRoute === 'A') {
+      if (btnA) btnA.classList.add('active-off');
+      if (pFlat) pFlat.classList.add('active');
+    } else if (activeRoute === 'B') {
+      if (btnB) btnB.classList.add('active-on');
+      if (pTarget) pTarget.classList.add('active');
+    } else if (activeRoute === 'C') {
+      if (btnC) btnC.classList.add('active-guess');
+      if (pGuess) pGuess.classList.add('active');
     } else if (activeRoute === 'AUDITION' && btnB) {
-      btnB.classList.add('active-on');
+      if (btnB) btnB.classList.add('active-on');
     }
   }
 
