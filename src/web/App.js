@@ -549,7 +549,7 @@ export class App {
         activeNode.qFactor = q;
         activeNode.type = type;
         // Note: visualizer renders continuously via requestAnimationFrame, no need to manually draw
-        this.audio.setUserEQ(this.visualizer.interactiveNodes);
+        this.audio.updateUserEQ(this.visualizer.interactiveNodes);
         this.hasInteracted = true;
         this.updateValidationState();
       }
@@ -835,8 +835,21 @@ export class App {
       trackDiv.className = 'stem-track flex flex-col gap-2 p-2 bg-slate-800 rounded';
 
       const label = document.createElement('span');
-      label.className = 'text-xs text-slate-400 font-bold';
+      label.className = 'text-xs text-slate-400 font-bold flex items-center gap-2';
       label.textContent = stem.displayName || stem.name;
+      
+      if (mtSession.targetStem && stem.id === mtSession.targetStem) {
+        const targetBadge = document.createElement('span');
+        targetBadge.className = 'badge bg-primary text-white text-[10px] px-1 py-0.5 rounded';
+        targetBadge.textContent = '🎯 TARGET';
+        targetBadge.title = 'Este es el instrumento afectado por el filtro';
+        label.appendChild(targetBadge);
+        
+        // Also highlight the track container lightly
+        trackDiv.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+        trackDiv.style.backgroundColor = 'rgba(15, 23, 42, 0.6)';
+      }
+
       trackDiv.appendChild(label);
 
       const controlsRow = document.createElement('div');
