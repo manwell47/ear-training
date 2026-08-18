@@ -914,6 +914,26 @@ export class App {
     }, 50);
   }
 
+  updateABButtons(activeRoute) {
+    const btnA = document.getElementById('btnRouteA');
+    const btnB = document.getElementById('btnRouteB');
+    const btnC = document.getElementById('btnRouteC');
+
+    [btnA, btnB, btnC].forEach(btn => {
+      if (btn) btn.classList.remove('active-off', 'active-on', 'active-guess', 'active-audition');
+    });
+
+    if (activeRoute === 'A' && btnA) {
+      btnA.classList.add('active-off');
+    } else if (activeRoute === 'B' && btnB) {
+      btnB.classList.add('active-on');
+    } else if (activeRoute === 'C' && btnC) {
+      btnC.classList.add('active-guess');
+    } else if (activeRoute === 'AUDITION' && btnB) {
+      btnB.classList.add('active-on');
+    }
+  }
+
   renderHUD(store = this.gameLoop ? this.gameLoop.store : null) {
     if (!store) return;
     const scoreEl = document.getElementById('soundgymScore');
