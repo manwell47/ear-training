@@ -414,13 +414,11 @@ export class AudioEngine {
         }
       });
 
-      // Load all stems asynchronously
-      const loadPromises = mtSession.stems.map(stem => 
-        this.resourceManager.loadAudio(stem.id, `Music Ear Training/Oggs/${stem.filename}`)
-      );
-      
+      // Load all stems sequentially to avoid HTTP 503 on GitHub Pages (rate limiting)
       try {
-        await Promise.all(loadPromises);
+        for (const stem of mtSession.stems) {
+          await this.resourceManager.loadAudio(stem.id, `Music Ear Training/Oggs/${stem.filename}`);
+        }
         if (this.isPlaying) this.play();
         // Emit event to UI so App.js knows to show the Stem Mixer
         if (this.onMultitrackLoaded) this.onMultitrackLoaded(mtSession);

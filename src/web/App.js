@@ -1627,7 +1627,7 @@ export class App {
       if (!this.audio.currentMtSession) {
         const defaultSession = multitrackSessions[0];
         if (defaultSession) {
-          this.audio.loadMultitrackSession(defaultSession);
+          this.audio.loadAudioSource(defaultSession.id);
         }
       }
       this.renderStemMixer(this.audio.currentMtSession || { stems: [], name: 'No Session' });
