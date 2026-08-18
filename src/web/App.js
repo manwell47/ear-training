@@ -728,6 +728,10 @@ export class App {
         this.audio.setRoute('B'); // B = Target EQ
         this.updateABButtons('B');
         this.hasListenedA = true;
+        if (this.audio && !this.audio.isPlaying) {
+          this.audio.play();
+          this.updatePlayButton();
+        }
       });
     }
     if (pBtnListenGuess) {
@@ -735,12 +739,20 @@ export class App {
         this.audio.setRoute('C'); // C = User Guess
         this.updateABButtons('C');
         this.hasListenedB = true;
+        if (this.audio && !this.audio.isPlaying) {
+          this.audio.play();
+          this.updatePlayButton();
+        }
       });
     }
     if (pBtnListenFlat) {
       pBtnListenFlat.addEventListener('click', () => {
          this.audio.setRoute('A'); // A = Clean / Flat
          this.updateABButtons('A');
+         if (this.audio && !this.audio.isPlaying) {
+           this.audio.play();
+           this.updatePlayButton();
+         }
       });
     }
 
@@ -1034,6 +1046,19 @@ export class App {
     } else if (activeRoute === 'AUDITION' && btnB) {
       btnB.classList.add('active-on');
     }
+
+    const pBtnTarget = document.getElementById('pBtnListenTarget');
+    const pBtnGuess = document.getElementById('pBtnListenGuess');
+    const pBtnFlat = document.getElementById('pBtnListenFlat');
+
+    [pBtnTarget, pBtnGuess, pBtnFlat].forEach(btn => {
+      if (btn) btn.classList.remove('active');
+    });
+
+    if (activeRoute === 'A' && pBtnFlat) pBtnFlat.classList.add('active');
+    else if (activeRoute === 'B' && pBtnTarget) pBtnTarget.classList.add('active');
+    else if (activeRoute === 'C' && pBtnGuess) pBtnGuess.classList.add('active');
+    else if (activeRoute === 'AUDITION' && pBtnTarget) pBtnTarget.classList.add('active');
   }
 
   renderHUD(store = this.gameLoop ? this.gameLoop.store : null) {
