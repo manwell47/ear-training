@@ -970,20 +970,20 @@ export class App {
     const submitBtn = document.getElementById('submitGuessBtn');
 
     const isModeEasy = this.trainer.difficulty === 'easy';
-    const isValid = this.hasListenedA && this.hasListenedB && (isModeEasy || this.hasInteracted);
+    const isValid = isModeEasy ? (this.hasListenedA && this.hasListenedB) : this.hasInteracted;
 
     if (hintBar && hintText) {
-      if (!this.hasListenedA && !this.hasListenedB) {
-        hintText.textContent = 'Escucha "EQ Off" y "EQ On" para responder.';
-        hintBar.classList.remove('ready');
-      } else if (!this.hasListenedA) {
-        hintText.textContent = 'Falta escuchar "EQ Off".';
-        hintBar.classList.remove('ready');
-      } else if (!this.hasListenedB) {
-        hintText.textContent = 'Falta escuchar "EQ On".';
-        hintBar.classList.remove('ready');
-      } else if (!isModeEasy && !this.hasInteracted) {
+      if (!isModeEasy && !this.hasInteracted) {
         hintText.textContent = 'Ajusta los controles o arrastra el punto para proponer tu respuesta.';
+        hintBar.classList.remove('ready');
+      } else if (isModeEasy && (!this.hasListenedA || !this.hasListenedB)) {
+        if (!this.hasListenedA && !this.hasListenedB) {
+          hintText.textContent = 'Escucha "EQ Off" y "EQ On" para responder.';
+        } else if (!this.hasListenedA) {
+          hintText.textContent = 'Falta escuchar "EQ Off".';
+        } else {
+          hintText.textContent = 'Falta escuchar "EQ On".';
+        }
         hintBar.classList.remove('ready');
       } else {
         hintText.textContent = '¡Listo! Puedes enviar tu respuesta.';
