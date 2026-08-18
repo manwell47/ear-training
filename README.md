@@ -17,9 +17,11 @@ Say goodbye to boring technical drills. With real-time spectrum analysis, immers
 
 ## 🚀 Key Features
 
+![Stem Mixer in Action](assets/stem_mixer.png)
+
+* **🎧 Multitrack Stem Mixer (NEW!)**: Load complete multitrack sessions. Adjust individual stem faders, mute/solo, and monitor real-time VU meters layered seamlessly behind transparent faders to maximize screen space.
 * **🎚️ Surgical EQ Simulator**: A hyper-realistic parametric EQ interface that mirrors professional DAWs and VST plugins.
-* **🎧 Multitrack Campaigns (NEW!)**: Work with multitrack stems (e.g., Orchestral sections, Drum kits). Solo, mute, and adjust faders just like on a real mixing console.
-* **🎓 Pedagogical Director**: Evaluates your choices using real-world mixing logic. Instead of just right/wrong, it tells you *why* a frequency change matters (e.g., "You boosted 200Hz on the snare, introducing muddiness").
+* **🎓 Pedagogical Director**: Evaluates your choices using real-world mixing logic. Instead of just right/wrong, it tells you *why* a frequency change matters.
 * **📈 VST-Fidelity Rendering**: Fluid, high-performance RTA (Real-Time Analyzer) spectrograms with precise temporal ballistics (RMS/EMA) for accurate visual feedback.
 * **🏆 RPG Progression System**: Climb the ranks from a beginner "Cable Puller" to a master "Senior Mixing Engineer." Unlock new modes, tighter difficulty tolerances, and "Boss Battles" as you level up.
 * **🧠 AB Comparison Engine**: Instantly toggle between the unprocessed signal and your EQ adjustments to train your comparative listening skills.

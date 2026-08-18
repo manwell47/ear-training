@@ -104,6 +104,7 @@
       <div id="analyzerControls" style="position: absolute; top: 16px; left: 64px; z-index: 5; display: flex; align-items: center; gap: 8px;">
         <button id="btnToggleRta" class="analyzer-res-btn" title="Alternar Resolución RTA">RTA: <span id="rtaModeLabel" style="color:#38bdf8; margin-left:4px;">SMOOTH</span></button>
         <button id="btnToggleZoom" class="analyzer-res-btn" title="Alternar Zoom Global (Dinámico vs Quirúrgico)">RANGO: <span id="zoomModeLabel" style="color:#c084fc; margin-left:4px;">60 dB</span></button>
+        <button id="btnStemMixer" class="analyzer-res-btn" style="color:#e2e8f0; border-color:#475569;">🎛️ Stem Mixer</button>
       </div>
 
       <!-- Stem Mixer Panel (Hidden by default) -->
@@ -458,17 +459,6 @@
             </div>
             <button class="btn btn-danger btn-select-campaign" data-campaign="orch_session" style="width: 100%;">Seleccionar ➔</button>
           </div>
-
-          <div class="difficulty-card hard-card campaign-card" data-campaign="acappella_session">
-            <div>
-              <div class="card-header-row">
-                <h3 class="card-title">A-Cappella</h3>
-                <span class="difficulty-badge badge-hard">Voces</span>
-              </div>
-              <p class="module-desc">Coros, Armonías y Voz Principal.</p>
-            </div>
-            <button class="btn btn-danger btn-select-campaign" data-campaign="acappella_session" style="width: 100%;">Seleccionar ➔</button>
-          </div>
         </div>
       </div>
 
@@ -630,6 +620,6 @@
       originalConsoleError.apply(console, args);
     };
   </script>
-  <script type="module" src="./src/web/App.js?v=57"></script>
+  <script type="module" src="./src/web/App.js?v=68"></script>
 </body>
 </html>

@@ -168,6 +168,12 @@ export class Visualizer {
     };
 
     const moveDrag = (e) => {
+      const isDraggingAny = this.interactiveNodes.some(n => n.isDragging);
+      if (!isDraggingAny && e.target !== this.canvas) {
+        this.hoverPos.active = false;
+        return;
+      }
+
       const pos = getPos(e);
       this.hoverPos.x = pos.x;
       this.hoverPos.y = pos.y;
@@ -511,8 +517,8 @@ export class Visualizer {
       if (textY > this.height - 15) textY = this.height - 15;
       if (textY < 15) textY = 15;
 
-      // Skip drawing the -60 and -42 dBFS rows as they overlap with frequency axis and are irrelevant
-      if (rtaDb !== -60 && rtaDb !== -42) {
+      // Skip drawing the -60 dBFS row as it overlaps with frequency axis
+      if (rtaDb !== -60) {
         // Etiquetas RTA (Izquierda)
         let rtaLabel = rtaDb === 0 ? `0 dBFS` : `${rtaDb} dBFS`;
         ctx.fillStyle = 'rgba(11, 12, 16, 0.85)';

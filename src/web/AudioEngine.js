@@ -468,6 +468,46 @@ export class AudioEngine {
     return this.loadAudioSource(trackId);
   }
 
+  setStemState(stemId, type) {
+    if (!this.stemStates) this.stemStates = {};
+    if (!this.stemStates[stemId]) this.stemStates[stemId] = { muted: false, solo: false, volume: 1.0 };
+    if (type === 'mute') {
+      this.stemStates[stemId].muted = !this.stemStates[stemId].muted;
+      if (this.stemStates[stemId].muted) this.stemStates[stemId].solo = false;
+    } else if (type === 'solo') {
+      this.stemStates[stemId].solo = !this.stemStates[stemId].solo;
+      if (this.stemStates[stemId].solo) this.stemStates[stemId].muted = false;
+    }
+    this.updateStemVolumes();
+  }
+
+  setStemVolume(stemId, volume) {
+    if (!this.stemStates) this.stemStates = {};
+    if (!this.stemStates[stemId]) this.stemStates[stemId] = { muted: false, solo: false, volume: 1.0 };
+    this.stemStates[stemId].volume = volume;
+    this.updateStemVolumes();
+  }
+
+  updateStemVolumes() {
+    if (!this.stemGainNodes) return;
+    let anySolo = false;
+    if (this.stemStates) {
+      anySolo = Object.values(this.stemStates).some(state => state.solo);
+    }
+    for (const stemId in this.stemGainNodes) {
+      const state = this.stemStates && this.stemStates[stemId] ? this.stemStates[stemId] : { muted: false, solo: false, volume: 1.0 };
+      const baseVol = state.volume !== undefined ? state.volume : 1.0;
+      let effectiveVol = baseVol;
+      if (state.muted) effectiveVol = 0.0;
+      if (anySolo && !state.solo) effectiveVol = 0.0;
+      
+      const gainNode = this.stemGainNodes[stemId];
+      if (gainNode) {
+        gainNode.gain.setTargetAtTime(effectiveVol, this.ctx.currentTime, 0.05);
+      }
+    }
+  }
+
   /**
    * Exclusive A/B/C Monitor Multiplexing.
    * Route A: Clean / Flat -> Source -> masterGain -> Analyser -> Destination
@@ -507,6 +547,11 @@ export class AudioEngine {
       // Determinar el nodo de salida base (puede ser el stemGainNode si es multitrack)
       const outNode = source.stemGainNode || source;
       try { outNode.disconnect(); } catch (_) {}
+
+      // Reconnect to its VU meter analyser if multitrack
+      if (source.stemId && this.stemAnalysers && this.stemAnalysers[source.stemId]) {
+        outNode.connect(this.stemAnalysers[source.stemId]);
+      }
 
       if (this.preAnalyser) {
         outNode.connect(this.preAnalyser);
@@ -595,6 +640,13 @@ export class AudioEngine {
         analyser.smoothingTimeConstant = 0.8;
         this.stemAnalysers[stem.id] = analyser;
         gainNode.connect(analyser);
+
+        // Dummy connection to destination to prevent Chrome from optimizing out the analyser
+        const dummyGain = this.ctx.createGain();
+        dummyGain.gain.value = 0;
+        analyser.connect(dummyGain);
+        dummyGain.connect(this.ctx.destination);
+
         
         const state = this.stemStates ? this.stemStates[stem.id] : { muted: false, solo: false };
         let volume = 1.0;
@@ -606,6 +658,7 @@ export class AudioEngine {
         
         source.isTarget = (stem.id === mtSession.targetStem);
         source.stemGainNode = gainNode; 
+        source.stemId = stem.id;
         
         source.onended = () => {
           if (!this.isLooping && source.isTarget) {
@@ -710,44 +763,6 @@ export class AudioEngine {
 
     this.isPlaying = false;
     if (this.onStateChange) this.onStateChange({ isPlaying: false });
-  }
-
-  setStemState(stemId, stateType) {
-    if (!this.stemStates || !this.stemStates[stemId]) return;
-    
-    if (stateType === 'mute') {
-      this.stemStates[stemId].muted = !this.stemStates[stemId].muted;
-      if (this.stemStates[stemId].muted) {
-         this.stemStates[stemId].solo = false;
-      }
-    } else if (stateType === 'solo') {
-      this.stemStates[stemId].solo = !this.stemStates[stemId].solo;
-      if (this.stemStates[stemId].solo) {
-         this.stemStates[stemId].muted = false;
-      }
-    }
-    
-    this.updateStemVolumes();
-  }
-
-  setStemVolume(stemId, volume) {
-    if (!this.stemStates || !this.stemStates[stemId]) return;
-    this.stemStates[stemId].volume = volume;
-    this.updateStemVolumes();
-  }
-
-  updateStemVolumes() {
-    if (!this.stemGainNodes || !this.ctx) return;
-    const anySolo = Object.values(this.stemStates).some(state => state.solo);
-    
-    for (const [stemId, gainNode] of Object.entries(this.stemGainNodes)) {
-      const state = this.stemStates[stemId];
-      let volume = state.volume !== undefined ? state.volume : 1.0;
-      if (state.muted) volume = 0.0;
-      else if (anySolo && !state.solo) volume = 0.0;
-      
-      gainNode.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.02);
-    }
   }
 
   togglePlay() {

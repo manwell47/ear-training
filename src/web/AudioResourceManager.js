@@ -95,23 +95,12 @@ export const MULTITRACK_SESSIONS = [
       { id: 'rb_org_topr', displayName: 'Organ Top R', filename: 'ORGAN LESLIE TOP_M80-SH.R.ogg', acousticClass: 'generic' },
       { id: 'rb_org_bot', displayName: 'Organ Bottom', filename: 'ORGAN LESLIE BOTTOM_M82.ogg', acousticClass: 'generic' },
       { id: 'rb_keys_l', displayName: 'Keys DI L', filename: 'KEYS_DI.L.ogg', acousticClass: 'generic' },
-      { id: 'rb_keys_r', displayName: 'Keys DI R', filename: 'KEYS_DI.R.ogg', acousticClass: 'generic' }
-    ]
-  },
-  {
-    id: 'acappella_session',
-    displayName: 'A-Cappella Group (Hey Delilah)',
-    category: 'Multitrack Sessions',
-    targetStem: 'vox_lead_m80',
-    stems: [
+      { id: 'rb_keys_r', displayName: 'Keys DI R', filename: 'KEYS_DI.R.ogg', acousticClass: 'generic' },
       { id: 'vox_bass_m80', displayName: 'Vox Bass', filename: 'VOX BASS_M80.ogg', acousticClass: 'vocals' },
       { id: 'vox_drums_m80', displayName: 'Vox Drums', filename: 'VOX DRUMS_M80.ogg', acousticClass: 'vocals' },
       { id: 'vox_gtr2_m80', displayName: 'Vox Guitar 2', filename: 'VOX GUITAR 2_M80.ogg', acousticClass: 'vocals' },
       { id: 'vox_keys_m80', displayName: 'Vox Keys', filename: 'VOX KEYS_M80.ogg', acousticClass: 'vocals' },
-      { id: 'vox_lead_m80', displayName: 'Vox Lead', filename: 'VOX LEAD_M80.ogg', acousticClass: 'vocals' },
-      { id: 'vox_bv1', displayName: 'Backing Vocals 1', filename: 'Vocals-BV1-M81.ogg', acousticClass: 'vocals' },
-      { id: 'vox_bv2', displayName: 'Backing Vocals 2', filename: 'Vocals-BV2-M81.ogg', acousticClass: 'vocals' },
-      { id: 'vox_lead_u47', displayName: 'Lead U47', filename: 'Vocals-Lead-U47.ogg', acousticClass: 'vocals' }
+      { id: 'vox_lead_m80', displayName: 'Vox Lead', filename: 'VOX LEAD_M80.ogg', acousticClass: 'vocals' }
     ]
   }
 ];
@@ -159,7 +148,6 @@ export const AUDIO_SOURCES = [
     { id: 'beat2_session', displayName: 'Beat 2 (Multitrack)', filename: null, category: 'Sesiones Multitrack', isSynthetic: false, isMultitrack: true, acousticClass: 'drumbus' },
     { id: 'orch_session', displayName: 'Orquesta Sinfónica Clásica', filename: null, category: 'Sesiones Multitrack', isSynthetic: false, isMultitrack: true, acousticClass: 'room' },
     { id: 'rb_session', displayName: 'Banda R&B (Multitrack)', filename: null, category: 'Sesiones Multitrack', isSynthetic: false, isMultitrack: true, acousticClass: 'drumbus' },
-    { id: 'acappella_session', displayName: 'A-Cappella Group', filename: null, category: 'Sesiones Multitrack', isSynthetic: false, isMultitrack: true, acousticClass: 'vocals' },
     { id: 'rock_band_session', displayName: 'Rock Band', filename: null, category: 'Sesiones Multitrack', isSynthetic: false, isMultitrack: true, acousticClass: 'drumbus' }
 ];
 

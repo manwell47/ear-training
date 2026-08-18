@@ -40,6 +40,7 @@ export class App {
       this.visualizer = new Visualizer(canvas, this.audio);
     }
 
+
     this.scoringEngine = new ScoringEngine();
     this.gameLoop = new GameLoopManager(this.scoringEngine);
     this.gameLoop.subscribe((state, store) => {
@@ -75,9 +76,20 @@ export class App {
     this.audio.onStateChange = (state) => {
       if (state.isPlaying !== undefined) {
         this.updatePlayButton();
+
+        if (state.isPlaying && this.audio.currentMultitrackSession) {
+          this.rebindVuMeters();
+        }
+
         if (this.vuMeter) {
             if (state.isPlaying) this.vuMeter.start();
             else this.vuMeter.stop();
+        }
+        if (this.stemVuMeters) {
+            this.stemVuMeters.forEach(vu => {
+                if (state.isPlaying) vu.start();
+                else vu.stop();
+            });
         }
       }
     };
@@ -838,12 +850,16 @@ export class App {
         this.audio.setStemState(stem.id, 'mute');
         muteBtn.classList.toggle('active', this.audio.stemStates[stem.id].muted);
         if (this.audio.stemStates[stem.id].muted) soloBtn.classList.remove('active');
+        this.hasInteracted = true;
+        this.updateValidationState();
       };
       
       soloBtn.onclick = () => {
         this.audio.setStemState(stem.id, 'solo');
         soloBtn.classList.toggle('active', this.audio.stemStates[stem.id].solo);
         if (this.audio.stemStates[stem.id].solo) muteBtn.classList.remove('active');
+        this.hasInteracted = true;
+        this.updateValidationState();
       };
       
       const stemControls = document.createElement('div');
@@ -860,7 +876,7 @@ export class App {
       faderContainer.style.display = 'flex';
       faderContainer.style.alignItems = 'center';
       faderContainer.style.borderRadius = '3px';
-      faderContainer.style.overflow = 'hidden';
+      faderContainer.style.overflow = 'visible';
       faderContainer.style.background = '#0b0c10';
       faderContainer.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.8)';
       faderContainer.style.padding = '0';
@@ -894,7 +910,11 @@ export class App {
 
       volSlider.oninput = (e) => {
         const val = parseFloat(e.target.value);
-        this.audio.setStemVolume(stem.id, val);
+        if (typeof this.audio.setStemVolume === 'function') {
+          this.audio.setStemVolume(stem.id, val);
+        }
+        this.hasInteracted = true;
+        this.updateValidationState();
       };
 
       faderContainer.appendChild(volSlider);
@@ -903,15 +923,78 @@ export class App {
       tracksContainer.appendChild(trackDiv);
     });
     
-    setTimeout(() => {
-       mtSession.stems.forEach(stem => {
-           if (this.audio.stemAnalysers && this.audio.stemAnalysers[stem.id]) {
-               const vu = new VUMeter(`vuMeter-${stem.id}`, this.audio.stemAnalysers[stem.id]);
-               this.stemVuMeters.push(vu);
-               if (this.audio.isPlaying) vu.start();
-           }
-       });
-    }, 50);
+    // Ensure VU meters bind correctly if already playing when opened
+    this.rebindVuMeters();
+  }
+
+  rebindVuMeters() {
+    if (!this.audio.currentMultitrackSession || !this.audio.stemAnalysers) return;
+    if (this.stemVuMeters) {
+        this.stemVuMeters.forEach(m => m.stop());
+    }
+    this.stemVuMeters = [];
+    this.audio.currentMultitrackSession.stems.forEach(stem => {
+        if (this.audio.stemAnalysers[stem.id]) {
+            const canvasEl = document.getElementById(`vuMeter-${stem.id}`);
+            if (canvasEl) {
+                const vu = new VUMeter(`vuMeter-${stem.id}`, this.audio.stemAnalysers[stem.id]);
+                this.stemVuMeters.push(vu);
+                if (this.audio.isPlaying) vu.start();
+            }
+        }
+    });
+  }
+
+  updateValidationState() {
+    const hintText = document.getElementById('auditionHintText');
+    const hintBar = document.getElementById('auditionStatusHint');
+    const submitBtn = document.getElementById('submitGuessBtn');
+
+    const isModeEasy = this.trainer.difficulty === 'easy';
+    const isValid = this.hasListenedA && this.hasListenedB && (isModeEasy || this.hasInteracted);
+
+    if (hintBar && hintText) {
+      if (!this.hasListenedA && !this.hasListenedB) {
+        hintText.textContent = 'Escucha "EQ Off" y "EQ On" para responder.';
+        hintBar.classList.remove('ready');
+      } else if (!this.hasListenedA) {
+        hintText.textContent = 'Falta escuchar "EQ Off".';
+        hintBar.classList.remove('ready');
+      } else if (!this.hasListenedB) {
+        hintText.textContent = 'Falta escuchar "EQ On".';
+        hintBar.classList.remove('ready');
+      } else if (!isModeEasy && !this.hasInteracted) {
+        hintText.textContent = 'Ajusta los controles o arrastra el punto para proponer tu respuesta.';
+        hintBar.classList.remove('ready');
+      } else {
+        hintText.textContent = '¡Listo! Puedes enviar tu respuesta.';
+        hintBar.classList.add('ready');
+      }
+    }
+
+    if (submitBtn) {
+      if (isValid) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('btn-submit-disabled');
+        submitBtn.classList.add('btn-submit-ready');
+      } else {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('btn-submit-disabled');
+        submitBtn.classList.remove('btn-submit-ready');
+      }
+    }
+
+    if (isModeEasy) {
+      document.querySelectorAll('.btn-select-guess').forEach(btn => {
+        if (this.hasListenedA && this.hasListenedB) {
+          btn.disabled = false;
+          btn.classList.remove('btn-disabled');
+        } else {
+          btn.disabled = true;
+          btn.classList.add('btn-disabled');
+        }
+      });
+    }
   }
 
   updateABButtons(activeRoute) {
@@ -1472,6 +1555,87 @@ export class App {
       }
       await this.audio.loadTrack(select.value);
       this.checkAndRenderMixer(select.value);
+    }
+  }
+
+  toggleStemMixer() {
+    this.audio.isStemMixerActive = !this.audio.isStemMixerActive;
+    const btn = document.getElementById('btnStemMixer');
+    if (btn) btn.classList.toggle('active', this.audio.isStemMixerActive);
+    
+    // Inject unbreakable CSS for faders to bypass any cache
+    let faderStyle = document.getElementById('fader-override-style');
+    if (!faderStyle) {
+      faderStyle = document.createElement('style');
+      faderStyle.id = 'fader-override-style';
+      faderStyle.textContent = `
+        .fader-fused {
+          -webkit-appearance: none !important;
+          appearance: none !important;
+          background: transparent !important;
+          width: 100% !important;
+          height: 6px !important;
+          margin: 12px 0 !important;
+          border-radius: 3px !important;
+          outline: none !important;
+          box-shadow: inset 0 1px 3px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.1) !important;
+        }
+        .fader-fused::-webkit-slider-thumb {
+          -webkit-appearance: none !important;
+          appearance: none !important;
+          width: 16px !important;
+          height: 32px !important;
+          background: linear-gradient(180deg, #94a3b8 0%, #cbd5e1 45%, #f1f5f9 50%, #94a3b8 55%, #64748b 100%) !important;
+          border: 1px solid #0f172a !important;
+          border-radius: 4px !important;
+          cursor: ns-resize !important;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.8), inset 0 1px 1px rgba(255,255,255,0.9), inset 0 -1px 1px rgba(0,0,0,0.5) !important;
+        }
+        .fader-fused::-moz-range-thumb {
+          width: 16px !important;
+          height: 32px !important;
+          background: linear-gradient(180deg, #94a3b8 0%, #cbd5e1 45%, #f1f5f9 50%, #94a3b8 55%, #64748b 100%) !important;
+          border: 1px solid #0f172a !important;
+          border-radius: 4px !important;
+          cursor: ns-resize !important;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.8), inset 0 1px 1px rgba(255,255,255,0.9), inset 0 -1px 1px rgba(0,0,0,0.5) !important;
+        }
+      `;
+      document.head.appendChild(faderStyle);
+    }
+
+    if (this.audio.isStemMixerActive) {
+      if (!this.audio.currentMtSession) {
+        const defaultSession = multitrackSessions[0];
+        if (defaultSession) {
+          this.audio.loadMultitrackSession(defaultSession);
+        }
+      }
+      this.renderStemMixer(this.audio.currentMtSession || { stems: [], name: 'No Session' });
+      
+      // Force Layout Hard
+      const workspace = document.getElementById('workspace');
+      if (workspace) {
+         workspace.style.display = 'flex';
+         workspace.style.flexDirection = 'row';
+      }
+      const canvas = document.getElementById('visualizerCanvas');
+      if (canvas) {
+         canvas.style.flex = '1 1 0%';
+         canvas.style.minWidth = '0px';
+         canvas.style.width = '0px';
+      }
+      const panel = document.getElementById('stemMixerPanel');
+      if (panel) {
+         panel.style.position = 'relative';
+         panel.style.width = '320px';
+         panel.style.flex = '0 0 320px';
+      }
+
+      if (this.visualizer) setTimeout(() => this.visualizer.resize(), 50);
+    } else {
+      this.hideStemMixer();
+      if (this.visualizer) setTimeout(() => this.visualizer.resize(), 50);
     }
   }
 
