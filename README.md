@@ -1,4 +1,6 @@
 <div align="center">
+  <img src="assets/menu_welcome.png" width="800">
+  <br><br>
   <h1>🎵 Ear Training Pro</h1>
   <h3>Advanced Audio Engineering Simulator</h3>
   <p><strong>A Gamified Parametric Equalization and Mixing Training Platform</strong></p>
@@ -29,6 +31,18 @@ Say goodbye to boring technical drills. With real-time spectrum analysis, immers
 ---
 
 ## 🎮 Game Modes
+
+Explore our comprehensive pedagogical formats:
+
+| Module Selection | Game Mode |
+| :---: | :---: |
+| <img src="assets/menu_module.png" width="400"> | <img src="assets/menu_mode.png" width="400"> |
+| Choose your training discipline | Select between Arcade, Campaign, or Free Mode |
+
+| Multitrack Session | Difficulty Settings |
+| :---: | :---: |
+| <img src="assets/menu_campaign.png" width="400"> | <img src="assets/menu_difficulty.png" width="400"> |
+| Load complete multitrack stems | Scale your training from Easy to Pro Surgical |
 
 ### 1. Arcade Mode (Randomized)
 Jump straight into the action. The engine serves up random stems or tracks, applying secret EQ boosts or cuts. Your job: use your ears (and the spectrum analyzer) to identify the altered frequency, estimate the gain change, and dial in the Q-factor.
