@@ -764,7 +764,13 @@ export class App {
     const restartGameBtn = document.getElementById('restartGameBtn');
     if (restartGameBtn) {
       restartGameBtn.addEventListener('click', () => {
-        this.gameLoop.reset();
+        if (this.gameLoop && this.gameLoop.resetSession) this.gameLoop.resetSession();
+        if (this.trainer && this.trainer.resetSession) this.trainer.resetSession();
+        
+        const gameOverModal = document.getElementById('gameOverModal');
+        if (gameOverModal) gameOverModal.classList.remove('active');
+        
+        this.setAppState('MODULE_SELECT');
       });
     }
   }

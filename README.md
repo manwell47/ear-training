@@ -47,11 +47,30 @@ Explore our comprehensive pedagogical formats:
 ### 1. Arcade Mode (Randomized)
 Jump straight into the action. The engine serves up random stems or tracks, applying secret EQ boosts or cuts. Your job: use your ears (and the spectrum analyzer) to identify the altered frequency, estimate the gain change, and dial in the Q-factor.
 
-### 2. Campaign Mode (Multitrack Mixing)
-Take on complex, real-world mixing challenges. Load up an entire multitrack session (e.g., an Orchestra with Main Pairs, Outriggers, and Spot Mics). The client has requested specific tonal changes, or a track is suffering from masking. You have a limited number of "strikes" to identify and fix the problematic stems.
+### 2. Mix Session Campaign (Bottom-Up)
+Train progressively on complete multitrack songs (e.g., *Beat 1*, *Rock Band*, *Orquesta Sinfónica*). 
+- Start with foundational elements (Kick drum, Bass).
+- Progress to Guitars, Keys, and Synths.
+- Finish with Vocals and the final Master Bus "Boss Battle".
 
-### 3. Free Mode (Practice)
-No pressure, no scores. Load any track, play with the EQ, analyze the RTA, and learn how different frequencies affect the timbre of various instruments.
+### 3. Free Mode (Upload Your Own Music)
+Practice using the music you love. Upload any `.mp3` or `.wav` file, and the engine will instantly transform it into a pedagogical sandbox.
+
+---
+
+## 🎚️ Adaptive Difficulty Levels
+
+The simulation adjusts to your listening skills. Start easy, end surgical:
+
+| Fácil (Easy) | Normal |
+| :---: | :---: |
+| <img src="assets/gameplay_easy.png" width="400"> | <img src="assets/gameplay_normal.png" width="400"> |
+| Listen to the target and choose the correct frequency from 4 multiple-choice options (A, B, C, D). | Find the exact frequency on the spectrum analyzer, guided by a visual tolerance band. |
+
+| Pro Surgical | Game Over / Progression |
+| :---: | :---: |
+| <img src="assets/gameplay_pro.png" width="400"> | <img src="assets/game_over.png" width="400"> |
+| Extremely narrow cuts and subtle boosts. Dial in Frequency, Gain, and Filter Type manually. | Earn points, multipliers, and rank up. Run out of lives, and it's Game Over! |
 
 ---
 
