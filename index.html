@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,9 +8,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Ear Training App - CSS Grid Studio VST Spectrum</title>
-  <meta name="description" content="Plataforma profesional de entrenamiento auditivo y ecualización quirúrgica en el navegador usando Web Audio API. Sin instalación.">
-  <link rel="stylesheet" href="styles_v2.css">
+  <meta name="description"
+    content="Plataforma profesional de entrenamiento auditivo y ecualización quirúrgica en el navegador usando Web Audio API. Sin instalación.">
+  <link rel="stylesheet" href="styles_v2.css?v=71">
 </head>
+
 <body>
 
   <!-- ─── PUNTO 1: Contenedor Principal #app-root (CSS Grid Estricto: auto 1fr auto) ── -->
@@ -21,7 +24,8 @@
         <div class="brand">
           <div class="brand-icon">🎛️</div>
           <span class="brand-title">Ear Training</span>
-          <button id="btnLobbyMenu" class="btn btn-secondary btn-compact" style="margin-left: 0.5rem;" onclick="window.setMode && window.setMode('easy')">
+          <button id="btnLobbyMenu" class="btn btn-secondary btn-compact" style="margin-left: 0.5rem;"
+            onclick="window.setMode && window.setMode('easy')">
             ⚙️ Menú
           </button>
         </div>
@@ -34,12 +38,15 @@
             <select id="sourceSelect" class="hidden-select"></select>
           </div>
           <input type="file" id="fileInput" accept="audio/*" class="hidden">
-          
+
           <div class="volume-control" style="display: flex; align-items: center; gap: 8px;">
             <span class="vol-label">Vol:</span>
-            <div style="position: relative; width: 120px; height: 14px; display: flex; align-items: center; border-radius: 3px; overflow: hidden; background: #0b0c10; box-shadow: inset 0 1px 3px rgba(0,0,0,0.8);">
-              <canvas id="vuMeter" width="120" height="14" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
-              <input type="range" id="volumeSlider" class="fader-fused" min="0" max="1" step="0.01" value="0.8" style="width: 100%; height: 100%; margin: 0; position: relative; z-index: 10; opacity: 1;">
+            <div
+              style="position: relative; width: 120px; height: 14px; display: flex; align-items: center; border-radius: 3px; overflow: hidden; background: #0b0c10; box-shadow: inset 0 1px 3px rgba(0,0,0,0.8);">
+              <canvas id="vuMeter" width="120" height="14"
+                style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+              <input type="range" id="volumeSlider" class="fader-fused" min="0" max="1" step="0.01" value="0.8"
+                style="width: 100%; height: 100%; margin: 0; position: relative; z-index: 10; opacity: 1;">
             </div>
           </div>
         </div>
@@ -48,9 +55,10 @@
           <button id="playBtn" class="btn btn-primary play-main-btn">
             <span>▶</span> Play
           </button>
-          
+
           <!-- Transport Scrub Bar -->
-          <input type="range" id="transportScrub" class="transport-scrub" min="0" max="100" step="0.1" value="0" style="width: 150px; margin-left: 10px;">
+          <input type="range" id="transportScrub" class="transport-scrub" min="0" max="100" step="0.1" value="0"
+            style="width: 150px; margin-left: 10px;">
 
           <div class="eq-toggle-group">
             <button id="btnRouteA" class="eq-toggle-btn active-off">EQ Off</button>
@@ -65,9 +73,12 @@
         <!-- Selector de Dificultad -->
         <div class="toolbar-group">
           <div class="mode-group">
-            <button id="btnModeEasy" class="mode-btn active" data-mode="easy" onclick="window.setMode && window.setMode('easy')">Fácil</button>
-            <button id="btnModeNormal" class="mode-btn" data-mode="normal" onclick="window.setMode && window.setMode('normal')">Normal</button>
-            <button id="btnModeHard" class="mode-btn" data-mode="hard" onclick="window.setMode && window.setMode('hard')">Pro</button>
+            <button id="btnModeEasy" class="mode-btn active" data-mode="easy"
+              onclick="window.setMode && window.setMode('easy')">Fácil</button>
+            <button id="btnModeNormal" class="mode-btn" data-mode="normal"
+              onclick="window.setMode && window.setMode('normal')">Normal</button>
+            <button id="btnModeHard" class="mode-btn" data-mode="hard"
+              onclick="window.setMode && window.setMode('hard')">Pro</button>
           </div>
         </div>
 
@@ -79,7 +90,8 @@
 
           <div class="soundgym-stat">
             <span class="soundgym-stat-label">RANGO</span>
-            <span id="soundgymRank" class="soundgym-stat-val text-amber" style="color: #38bdf8; font-weight: bold;">Tiracables</span>
+            <span id="soundgymRank" class="soundgym-stat-val text-amber"
+              style="color: #38bdf8; font-weight: bold;">Tiracables</span>
           </div>
 
           <div class="soundgym-stat">
@@ -101,10 +113,14 @@
       <canvas id="visualizerCanvas"></canvas>
 
       <!-- Analyzer Controls Overlay -->
-      <div id="analyzerControls" style="position: absolute; top: 16px; left: 64px; z-index: 5; display: flex; align-items: center; gap: 8px;">
-        <button id="btnToggleRta" class="analyzer-res-btn" title="Alternar Resolución RTA">RTA: <span id="rtaModeLabel" style="color:#38bdf8; margin-left:4px;">SMOOTH</span></button>
-        <button id="btnToggleZoom" class="analyzer-res-btn" title="Alternar Zoom Global (Dinámico vs Quirúrgico)">RANGO: <span id="zoomModeLabel" style="color:#c084fc; margin-left:4px;">60 dB</span></button>
-        <button id="btnStemMixer" class="analyzer-res-btn" style="color:#e2e8f0; border-color:#475569;">🎛️ Stem Mixer</button>
+      <div id="analyzerControls"
+        style="position: absolute; top: 16px; left: 64px; z-index: 5; display: flex; align-items: center; gap: 8px;">
+        <button id="btnToggleRta" class="analyzer-res-btn" title="Alternar Resolución RTA">RTA: <span id="rtaModeLabel"
+            style="color:#38bdf8; margin-left:4px;">SMOOTH</span></button>
+        <button id="btnToggleZoom" class="analyzer-res-btn" title="Alternar Zoom Global (Dinámico vs Quirúrgico)">RANGO:
+          <span id="zoomModeLabel" style="color:#c084fc; margin-left:4px;">60 dB</span></button>
+        <button id="btnStemMixer" class="analyzer-res-btn" style="color:#e2e8f0; border-color:#475569;">🎛️ Stem
+          Mixer</button>
       </div>
 
       <!-- Stem Mixer Panel (Hidden by default) -->
@@ -112,6 +128,8 @@
         <div class="stem-mixer-header">
           <h3>🎛️ Stem Mixer</h3>
           <span id="stemMixerTitle">Beat</span>
+          <button id="spotlightToggleBtn" class="analyzer-res-btn" type="button"
+            title="Enfoque activo: los demás stems bajan 6 dB para oír mejor el objetivo">🎯 Focus ON</button>
         </div>
         <div id="stemMixerTracks" class="stem-mixer-tracks">
           <!-- Tracks dynamically injected here by App.js -->
@@ -121,7 +139,7 @@
 
     <!-- Fila 3: Bottom Dock (100% Ancho Inferior, De Lado a Lado) -->
     <footer id="bottomDock" class="bottom-dock">
-      
+
       <!-- Modo Fácil: Cuadrícula Horizontal de Opciones A, B, C, D -->
       <div id="easyModeSection" style="width: 100%;">
         <div id="easyOptionsGrid" class="easy-options-grid-horizontal"></div>
@@ -130,7 +148,8 @@
       <!-- Modo Normal / Pro: Controles Manuales Horizontal -->
       <div id="manualModeSection" class="hidden" style="width: 100%;">
         <!-- Selector Multi-banda (Oculto por defecto, visible en Boss Mode) -->
-        <div id="bandSelector" class="band-selector hidden" style="display: flex; gap: 8px; justify-content: center; margin-bottom: 8px;">
+        <div id="bandSelector" class="band-selector hidden"
+          style="display: flex; gap: 8px; justify-content: center; margin-bottom: 8px;">
           <button class="btn btn-band active" data-band="0">🟢 Banda 1</button>
           <button class="btn btn-band" data-band="1">🟡 Banda 2</button>
         </div>
@@ -176,7 +195,8 @@
             <span>🎧</span> <span id="auditionHintText">Escucha "EQ Off" y "EQ On" para responder.</span>
           </div>
 
-          <button id="submitGuessBtn" class="btn btn-accent btn-submit-disabled" disabled style="padding: 0.6rem 1.4rem; font-size: 0.9rem; flex-shrink: 0;">
+          <button id="submitGuessBtn" class="btn btn-accent btn-submit-disabled" disabled
+            style="padding: 0.6rem 1.4rem; font-size: 0.9rem; flex-shrink: 0;">
             🎯 Enviar Respuesta
           </button>
 
@@ -185,7 +205,7 @@
 
       <!-- Componente de Resultados Integrado en Fila 3 (Reemplaza a las Opciones al terminar el ensayo) -->
       <div id="resultsDockSection" class="results-dock-section hidden">
-        
+
         <div class="results-main-row">
           <!-- Bloque Izquierdo: Estado del Resultado + Subtítulo Objetivo + Botones Audición Hardware -->
           <div class="results-block-left">
@@ -271,7 +291,7 @@
           <h1 class="welcome-title">Ear Training App</h1>
           <h2 class="welcome-subtitle">Mejora tu precisión auditiva</h2>
           <p class="welcome-desc">
-            Desarrollado para ingenieros de mezcla y máster. Entrena tu oído para identificar picos de frecuencia, 
+            Desarrollado para ingenieros de mezcla y máster. Entrena tu oído para identificar picos de frecuencia,
             cortes quirúrgicos, variaciones de ganancia y anomalías espectrales con bandas de tolerancia pedagógica.
           </p>
           <button id="btnStartWelcome" class="btn btn-primary btn-hero" style="margin-top: 1rem;">
@@ -337,11 +357,12 @@
         </div>
       </div>
 
-      
+
       <!-- Step 1.5: GAME_MODE_SELECT -->
       <div id="screenGameModeSelect" class="onboarding-step hidden">
         <div class="step-header">
-          <button class="btn btn-secondary btn-compact" id="btnBackToModulesFromMode" style="margin-bottom: 1rem;">← Volver</button>
+          <button class="btn btn-secondary btn-compact" id="btnBackToModulesFromMode" style="margin-bottom: 1rem;">←
+            Volver</button>
           <h2 class="step-title">Selecciona el Modo de Juego</h2>
           <p class="step-subtitle">Elige cómo quieres enfocar tu sesión de hoy:</p>
         </div>
@@ -354,7 +375,8 @@
               <span>Soundcheck (Arcade)</span>
             </div>
             <p class="module-desc">
-              Instrumentos aleatorios sin parar. Gana multiplicadores de puntos por aciertos consecutivos. ¡Modo supervivencia con 3 vidas!
+              Instrumentos aleatorios sin parar. Gana multiplicadores de puntos por aciertos consecutivos. ¡Modo
+              supervivencia con 3 vidas!
             </p>
             <button id="btnModeArcade" class="btn btn-primary" style="margin-top: auto;">
               Seleccionar Arcade
@@ -368,7 +390,8 @@
               <span>Sesión de Mezcla (Campaña)</span>
             </div>
             <p class="module-desc">
-              Entrenamiento lógico y secuencial (Bottom-Up). Arregla pista a pista (Batería, Bajo, Guitarras) hasta enfrentarte al Boss en el Bus Master.
+              Entrenamiento lógico y secuencial (Bottom-Up). Arregla pista a pista (Batería, Bajo, Guitarras) hasta
+              enfrentarte al Boss en el Bus Master.
             </p>
             <button id="btnModeCampaign" class="btn btn-accent" style="margin-top: auto;">
               Seleccionar Campaña
@@ -382,10 +405,12 @@
               <span>Modo Libre (Upload)</span>
             </div>
             <p class="module-desc">
-              Sube tu propia pista estéreo. El motor procesará tu canción para que practiques tu ecualización quirúrgica en un contexto real.
+              Sube tu propia pista estéreo. El motor procesará tu canción para que practiques tu ecualización quirúrgica
+              en un contexto real.
             </p>
             <input type="file" id="customAudioUpload" accept="audio/*" style="display: none;">
-            <button id="btnModeLibre" class="btn btn-secondary" style="margin-top: auto; border-color: #10b981; color: #10b981;">
+            <button id="btnModeLibre" class="btn btn-secondary"
+              style="margin-top: auto; border-color: #10b981; color: #10b981;">
               Subir Pista y Jugar
             </button>
           </div>
@@ -396,7 +421,8 @@
       <!-- Step 1.75: CAMPAIGN_SELECT -->
       <div id="screenCampaignSelect" class="onboarding-step hidden">
         <div class="step-header">
-          <button class="btn btn-secondary btn-compact" id="btnBackToModeFromCampaign" style="margin-bottom: 1rem;">← Volver</button>
+          <button class="btn btn-secondary btn-compact" id="btnBackToModeFromCampaign" style="margin-bottom: 1rem;">←
+            Volver</button>
           <h2 class="step-title">Selecciona la Sesión de Mezcla</h2>
           <p class="step-subtitle">Elige qué pista multipistas quieres dominar:</p>
         </div>
@@ -404,7 +430,7 @@
         <div class="difficulty-grid" id="campaignGrid">
           <!-- Populated dynamically by JS or statically -->
           <!-- We will just populate statically as there are only 6 tracks -->
-          
+
           <div class="difficulty-card easy-card campaign-card" data-campaign="beat1_session">
             <div>
               <div class="card-header-row">
@@ -413,7 +439,8 @@
               </div>
               <p class="module-desc">Bombo, Caja y Hi-Hat.</p>
             </div>
-            <button class="btn btn-primary btn-select-campaign" data-campaign="beat1_session" style="width: 100%;">Seleccionar ➔</button>
+            <button class="btn btn-primary btn-select-campaign" data-campaign="beat1_session"
+              style="width: 100%;">Seleccionar ➔</button>
           </div>
 
           <div class="difficulty-card easy-card campaign-card" data-campaign="beat2_session">
@@ -424,7 +451,8 @@
               </div>
               <p class="module-desc">Kit completo de batería acústica.</p>
             </div>
-            <button class="btn btn-primary btn-select-campaign" data-campaign="beat2_session" style="width: 100%;">Seleccionar ➔</button>
+            <button class="btn btn-primary btn-select-campaign" data-campaign="beat2_session"
+              style="width: 100%;">Seleccionar ➔</button>
           </div>
 
           <div class="difficulty-card normal-card campaign-card" data-campaign="rock_band_session">
@@ -435,7 +463,8 @@
               </div>
               <p class="module-desc">Batería, Bajo, Guitarras, Voces.</p>
             </div>
-            <button class="btn btn-accent btn-select-campaign" data-campaign="rock_band_session" style="width: 100%;">Seleccionar ➔</button>
+            <button class="btn btn-accent btn-select-campaign" data-campaign="rock_band_session"
+              style="width: 100%;">Seleccionar ➔</button>
           </div>
 
           <div class="difficulty-card normal-card campaign-card" data-campaign="rb_session">
@@ -446,7 +475,8 @@
               </div>
               <p class="module-desc">Beat, Keys, Bass, Vocals.</p>
             </div>
-            <button class="btn btn-accent btn-select-campaign" data-campaign="rb_session" style="width: 100%;">Seleccionar ➔</button>
+            <button class="btn btn-accent btn-select-campaign" data-campaign="rb_session"
+              style="width: 100%;">Seleccionar ➔</button>
           </div>
 
           <div class="difficulty-card hard-card campaign-card" data-campaign="orch_session">
@@ -457,12 +487,13 @@
               </div>
               <p class="module-desc">Cuerdas, Maderas, Metales, Percusión.</p>
             </div>
-            <button class="btn btn-danger btn-select-campaign" data-campaign="orch_session" style="width: 100%;">Seleccionar ➔</button>
+            <button class="btn btn-danger btn-select-campaign" data-campaign="orch_session"
+              style="width: 100%;">Seleccionar ➔</button>
           </div>
         </div>
       </div>
 
-<!-- Step 2: DIFFICULTY_SELECT -->
+      <!-- Step 2: DIFFICULTY_SELECT -->
       <div id="screenDifficultySelect" class="onboarding-step hidden">
         <div class="step-header">
           <h2 class="step-title">Selecciona tu Nivel</h2>
@@ -481,23 +512,27 @@
                 Escucha el objetivo y elige la frecuencia correcta entre 4 opciones dadas (A, B, C, D).
               </p>
             </div>
-            <button class="btn btn-primary btn-select-level" data-level="easy" onclick="window.setMode && window.setMode('easy')" style="width: 100%;">
+            <button class="btn btn-primary btn-select-level" data-level="easy"
+              onclick="window.setMode && window.setMode('easy')" style="width: 100%;">
               Seleccionar Fácil ➔
             </button>
           </div>
 
           <!-- Normal Level -->
-          <div class="difficulty-card normal-card" data-level="normal" onclick="window.setMode && window.setMode('normal')">
+          <div class="difficulty-card normal-card" data-level="normal"
+            onclick="window.setMode && window.setMode('normal')">
             <div>
               <div class="card-header-row">
                 <h3 class="card-title">Normal</h3>
                 <span class="difficulty-badge badge-normal">Banda de Tolerancia</span>
               </div>
               <p class="module-desc">
-                Encuentra la frecuencia en la gráfica con <strong>margen de tolerancia amplio</strong> (obtén aciertos y puntos al estar dentro de la banda).
+                Encuentra la frecuencia en la gráfica con <strong>margen de tolerancia amplio</strong> (obtén aciertos y
+                puntos al estar dentro de la banda).
               </p>
             </div>
-            <button class="btn btn-accent btn-select-level" data-level="normal" onclick="window.setMode && window.setMode('normal')" style="width: 100%;">
+            <button class="btn btn-accent btn-select-level" data-level="normal"
+              onclick="window.setMode && window.setMode('normal')" style="width: 100%;">
               Seleccionar Normal ➔
             </button>
           </div>
@@ -513,7 +548,8 @@
                 Cortes estrechos y variaciones sutiles. Ajusta Frecuencia, Ganancia, Q y Tipo de Filtro.
               </p>
             </div>
-            <button class="btn btn-danger btn-select-level" data-level="hard" onclick="window.setMode && window.setMode('hard')" style="width: 100%;">
+            <button class="btn btn-danger btn-select-level" data-level="hard"
+              onclick="window.setMode && window.setMode('hard')" style="width: 100%;">
               Seleccionar Pro ➔
             </button>
           </div>
@@ -541,9 +577,15 @@
       </div>
 
       <div class="feedback-details">
-        <div class="detail-row"><span>Score Total:</span> <strong id="finalScorePoints" class="text-amber">0</strong></div>
+        <div class="detail-row"><span>Rango Final:</span> <strong id="finalRank"
+            style="color: #38bdf8;">Tiracables</strong></div>
+        <div class="detail-row"><span>Nivel:</span> <strong id="finalLevel">1</strong></div>
+        <div class="detail-row"><span>Stage:</span> <strong id="finalStage" class="text-cyan">1/5</strong></div>
+        <div class="detail-row"><span>Score Total:</span> <strong id="finalScorePoints" class="text-amber">0</strong>
+        </div>
         <div class="detail-row"><span>Mayor Racha:</span> <strong id="finalStreak">0</strong></div>
-        <div class="detail-row"><span>Precisión Promedio:</span> <strong id="finalScore" class="text-cyan">0%</strong></div>
+        <div class="detail-row"><span>Precisión Promedio:</span> <strong id="finalScore" class="text-cyan">0%</strong>
+        </div>
       </div>
 
       <button id="restartGameBtn" class="btn btn-accent" style="justify-content: center; width: 100%;">
@@ -554,17 +596,23 @@
 
   <!-- Level Up Modal Overlay -->
   <div id="levelUpModal" class="modal-backdrop">
-    <div class="modal-card vst-glass-panel text-center" style="max-width: 480px; text-align: center; border: 2px solid #f59e0b; box-shadow: 0 0 35px rgba(245, 158, 11, 0.45);">
+    <div class="modal-card vst-glass-panel text-center"
+      style="max-width: 480px; text-align: center; border: 2px solid #f59e0b; box-shadow: 0 0 35px rgba(245, 158, 11, 0.45);">
       <div style="font-size: 3.5rem; margin-bottom: 0.5rem; animation: pulse 1s infinite;">🏆</div>
       <h2 style="font-size: 1.8rem; color: #f59e0b; margin-bottom: 0.3rem;">¡VICTORIA CONTRA EL BOSS!</h2>
-      <p style="font-size: 0.95rem; color: #e2e8f0; margin-bottom: 1.2rem;">Has superado la prueba del cliente con éxito.</p>
-      
-      <div style="background: rgba(245, 158, 11, 0.12); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid rgba(245, 158, 11, 0.35);">
-        <div style="font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Nuevo Rango Profesional Conseguido</div>
-        <div id="modalNewRankTitle" style="font-size: 1.5rem; color: #38bdf8; font-weight: bold; margin-top: 0.4rem;">Asistente de Estudio</div>
+      <p style="font-size: 0.95rem; color: #e2e8f0; margin-bottom: 1.2rem;">Has superado la prueba del cliente con
+        éxito.</p>
+
+      <div
+        style="background: rgba(245, 158, 11, 0.12); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid rgba(245, 158, 11, 0.35);">
+        <div style="font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Nuevo Rango
+          Profesional Conseguido</div>
+        <div id="modalNewRankTitle" style="font-size: 1.5rem; color: #38bdf8; font-weight: bold; margin-top: 0.4rem;">
+          Asistente de Estudio</div>
       </div>
 
-      <button id="btnContinueLevelUp" class="btn btn-accent" style="justify-content: center; width: 100%; font-size: 1.05rem;">
+      <button id="btnContinueLevelUp" class="btn btn-accent"
+        style="justify-content: center; width: 100%; font-size: 1.05rem;">
         Continuar al Siguiente Nivel ➔
       </button>
     </div>
@@ -572,18 +620,39 @@
 
   <!-- Boss Defeat Modal Overlay -->
   <div id="bossDefeatModal" class="modal-backdrop">
-    <div class="modal-card vst-glass-panel text-center" style="max-width: 480px; text-align: center; border: 2px solid #f43f5e; box-shadow: 0 0 35px rgba(244, 63, 94, 0.45);">
+    <div class="modal-card vst-glass-panel text-center"
+      style="max-width: 480px; text-align: center; border: 2px solid #f43f5e; box-shadow: 0 0 35px rgba(244, 63, 94, 0.45);">
       <div style="font-size: 3.5rem; margin-bottom: 0.5rem;">💔</div>
       <h2 style="font-size: 1.8rem; color: #f43f5e; margin-bottom: 0.5rem;">DERROTA EN EL BOSS</h2>
       <p id="modalDefeatMessage" style="font-size: 0.95rem; color: #e2e8f0; margin-bottom: 1.2rem;">
         Has fallado la mezcla del cliente. Vuelve a afinar tu oído y reinténtalo.
       </p>
-      <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 1.5rem; background: rgba(244, 63, 94, 0.1); padding: 0.6rem; border-radius: 6px;">
+      <div
+        style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 1.5rem; background: rgba(244, 63, 94, 0.1); padding: 0.6rem; border-radius: 6px;">
         Penalización: Has vuelto a caer al <strong>Stage 4/5</strong>.
       </div>
 
-      <button id="btnRetryBoss" class="btn btn-secondary" style="justify-content: center; width: 100%; border-color: #f43f5e; color: #f43f5e; font-size: 1rem;">
+      <button id="btnRetryBoss" class="btn btn-secondary"
+        style="justify-content: center; width: 100%; border-color: #f43f5e; color: #f43f5e; font-size: 1rem;">
         Volver al Stage 4 y Reintentar ➔
+      </button>
+    </div>
+  </div>
+
+  <!-- Campaign Complete Modal Overlay -->
+  <div id="campaignCompleteModal" class="modal-backdrop">
+    <div class="modal-card vst-glass-panel text-center"
+      style="max-width: 500px; text-align: center; border: 2px solid #10b981; box-shadow: 0 0 35px rgba(16, 185, 129, 0.45);">
+      <div style="font-size: 3.5rem; margin-bottom: 0.5rem;">🎧</div>
+      <h2 style="font-size: 1.8rem; color: #10b981; margin-bottom: 0.5rem;">¡ENTRENAMIENTO COMPLETADO!</h2>
+      <p style="font-size: 1rem; color: #e2e8f0; line-height: 1.6; margin-bottom: 1.5rem;">
+        Gracias por entrenar tu oído conmigo.<br>
+        <span style="display: inline-block; margin-top: 0.75rem; font-weight: bold; color: #38bdf8;">Firmado:
+          manu.</span>
+      </p>
+      <button id="btnCampaignCompleteMenu" class="btn btn-accent"
+        style="justify-content: center; width: 100%; font-size: 1.05rem;">
+        🏠 Volver al Menú Principal
       </button>
     </div>
   </div>
@@ -605,21 +674,22 @@
       errDiv.innerHTML = `<strong>ERROR:</strong> ${msg}`;
       document.body.prepend(errDiv);
     }
-    
-    window.addEventListener('error', function(event) {
+
+    window.addEventListener('error', function (event) {
       displayErrorOnScreen(event.message + ' at ' + event.filename + ':' + event.lineno);
     });
-    
-    window.addEventListener('unhandledrejection', function(event) {
+
+    window.addEventListener('unhandledrejection', function (event) {
       displayErrorOnScreen(event.reason ? (event.reason.message || event.reason) : 'Unknown Promise Rejection');
     });
 
     const originalConsoleError = console.error;
-    console.error = function(...args) {
+    console.error = function (...args) {
       displayErrorOnScreen(args.map(a => typeof a === 'object' && a ? (a.message || JSON.stringify(a)) : String(a)).join(' '));
       originalConsoleError.apply(console, args);
     };
   </script>
-  <script type="module" src="./src/web/App.js?v=68"></script>
+  <script type="module" src="./src/web/App.js?v=71"></script>
 </body>
+
 </html>

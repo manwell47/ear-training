@@ -4,13 +4,14 @@
  * Manages CSS Grid workspace layout, onboarding overlay, mode switching, draggable Canvas node handle in Pro mode, and Fila 3 integrated pedagogical results.
  */
 
-import { AudioEngine } from './AudioEngine.js';
-import { Visualizer } from './Visualizer_v2.js?v=45';
-import { GameLoopManager, GAME_STATES } from './GameLoopManager.js';
-import { AUDIO_SOURCES, MULTITRACK_SESSIONS } from './AudioResourceManager.js';
-import { TrainingManager } from './TrainingManager.js';
-import { ScoringEngine, checkFilterFalseFriends, analyzeProPractices } from './ScoringEngine.js';
-import { VUMeter } from './VUMeter.js';
+import { AudioEngine } from './AudioEngine.js?v=70';
+import { Visualizer } from './Visualizer_v2.js?v=70';
+import { GameLoopManager, GAME_STATES } from './GameLoopManager.js?v=70';
+import { AUDIO_SOURCES, MULTITRACK_SESSIONS, pickRandomTargetStem } from './AudioResourceManager.js?v=70';
+import { TrainingManager } from './TrainingManager.js?v=70';
+import { ScoringEngine, checkFilterFalseFriends, analyzeProPractices } from './ScoringEngine.js?v=70';
+import { resolveAcousticClassKey } from './AcousticMatrix.js?v=70';
+import { VUMeter } from './VUMeter.js?v=70';
 
 export class App {
   constructor() {
@@ -28,6 +29,13 @@ export class App {
     // Target Swap Lifelines
     this.targetSwapsRemaining = 3;
 
+    // Progression ceiling for the campaign end-state (matches GameLoopManager RANKS length)
+    this.maxLevels = 5;
+
+    // Terminal / level-up modal deferred by showPedagogicalReview so the didactic
+    // review is seen (and audible) before the game-over screen covers it.
+    this.pendingOutcomeModal = null;
+
     // Local track catalog removed in favor of AUDIO_SOURCES from AudioResourceManager
   }
 
@@ -44,8 +52,11 @@ export class App {
     this.scoringEngine = new ScoringEngine();
     this.gameLoop = new GameLoopManager(this.scoringEngine);
     this.gameLoop.subscribe((state, store) => {
-        if (typeof this.renderHUD === 'function') this.renderHUD(store);
+      if (typeof this.renderHUD === 'function') this.renderHUD(store);
     });
+
+    // Single source of truth: TrainingManager reads progression (lives/stage) from the global store
+    this.trainer.gameLoopStore = this.gameLoop.store;
 
     this.bindOnboardingEvents();
     this.bindEvents();
@@ -69,7 +80,7 @@ export class App {
     }
 
     if (this.audio.analyser) {
-        this.vuMeter = new VUMeter('vuMeter', this.audio.analyser);
+      this.vuMeter = new VUMeter('vuMeter', this.audio.analyser);
     }
 
     // Audio Engine State Change Handler
@@ -82,15 +93,27 @@ export class App {
         }
 
         if (this.vuMeter) {
-            if (state.isPlaying) this.vuMeter.start();
-            else this.vuMeter.stop();
+          if (state.isPlaying) this.vuMeter.start();
+          else this.vuMeter.stop();
         }
         if (this.stemVuMeters) {
-            this.stemVuMeters.forEach(vu => {
-                if (state.isPlaying) vu.start();
-                else vu.stop();
-            });
+          this.stemVuMeters.forEach(vu => {
+            if (state.isPlaying) vu.start();
+            else vu.stop();
+          });
         }
+      }
+    };
+
+    // Mixer state was reset to a clean full mix (silence-guard). Re-render the
+    // stem mixer so its M/S buttons and faders reflect the new state.
+    this.audio.onStemStateReset = (session) => {
+      if (
+        this.audio.currentMultitrackSession &&
+        session &&
+        this.audio.currentMultitrackSession.id === session.id
+      ) {
+        this.renderStemMixer(session);
       }
     };
 
@@ -116,6 +139,10 @@ export class App {
         s.classList.add('hidden');
       }
     });
+
+    // The difficulty selector is only interactive in the menus; during play it
+    // becomes a static chip showing the active tier (tester comment #7).
+    this.setDifficultyChipsLocked(newState === 'PLAYING');
 
     if (newState === 'WELCOME') {
       if (overlay) overlay.classList.remove('hidden-overlay');
@@ -154,24 +181,24 @@ export class App {
 
   setActiveBand(index) {
     if (!this.visualizer || !this.visualizer.interactiveNodes) return;
-    
+
     this.visualizer.activeNodeIndex = index;
-    
+
     // Update active class on DOM tabs
     document.querySelectorAll('.btn-band').forEach(btn => {
-        if (parseInt(btn.getAttribute('data-band')) === index) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
+      if (parseInt(btn.getAttribute('data-band')) === index) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
     });
-    
+
     // Update DOM inputs to match this node
     const node = this.visualizer.interactiveNodes[index];
     if (node) {
-        this.updateManualInputs(node.frequencyHz, node.gainDb, node.qFactor);
-        const typeSelect = document.getElementById('typeSelect');
-        if (typeSelect) typeSelect.value = node.type || 'peaking';
+      this.updateManualInputs(node.frequencyHz, node.gainDb, node.qFactor);
+      const typeSelect = document.getElementById('typeSelect');
+      if (typeSelect) typeSelect.value = node.type || 'peaking';
     }
   }
 
@@ -235,8 +262,8 @@ export class App {
         const campaign = btn.getAttribute('data-campaign');
         const sourceSelect = document.getElementById('sourceSelect');
         if (sourceSelect && campaign) {
-           sourceSelect.value = campaign;
-           if (typeof this.buildCustomDropdown === 'function') this.buildCustomDropdown();
+          sourceSelect.value = campaign;
+          if (typeof this.buildCustomDropdown === 'function') this.buildCustomDropdown();
         }
         this.setAppState('DIFFICULTY_SELECT');
       });
@@ -294,11 +321,11 @@ export class App {
 
       if (this.visualizer) {
         this.visualizer.interactiveNodes = [{
-            frequencyHz: 1000,
-            gainDb: 0,
-            qFactor: 2.0,
-            type: 'peaking',
-            isDragging: false
+          frequencyHz: 1000,
+          gainDb: 0,
+          qFactor: 2.0,
+          type: 'peaking',
+          isDragging: false
         }];
         this.visualizer.activeNodeIndex = 0;
         if (this.visualizer.onBandSelected) this.visualizer.onBandSelected(0);
@@ -317,10 +344,10 @@ export class App {
     if (this.audio) {
       if (!this.audio.ctx) {
         this.audio.init().then(() => {
-          this.loadSelectedSource().catch(() => {});
+          this.loadSelectedSource().catch(() => { });
         }).catch(err => console.warn('Audio init warning:', err));
       } else {
-        this.loadSelectedSource().catch(() => {});
+        this.loadSelectedSource().catch(() => { });
       }
     }
   }
@@ -336,6 +363,19 @@ export class App {
     });
   }
 
+  /**
+   * Locks/unlocks the header difficulty selector. During play it behaves as a
+   * non-interactive chip so it no longer invites mid-session taps.
+   * @param {boolean} locked
+   */
+  setDifficultyChipsLocked(locked) {
+    const group = document.querySelector('.mode-group');
+    if (group) group.classList.toggle('locked', locked);
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.disabled = !!locked;
+    });
+  }
+
   populateSourceDropdown() {
     const select = document.getElementById('sourceSelect');
     if (!select) return;
@@ -346,9 +386,9 @@ export class App {
     AUDIO_SOURCES.forEach(track => {
       const category = track.category || 'Otros';
       if (!optgroups[category]) {
-         optgroups[category] = document.createElement('optgroup');
-         optgroups[category].label = category;
-         select.appendChild(optgroups[category]);
+        optgroups[category] = document.createElement('optgroup');
+        optgroups[category].label = category;
+        select.appendChild(optgroups[category]);
       }
       const opt = document.createElement('option');
       opt.value = track.id;
@@ -360,7 +400,7 @@ export class App {
     uploadOpt.value = 'upload-custom';
     uploadOpt.textContent = '🎶 Cargar Archivo...';
     select.appendChild(uploadOpt);
-    
+
     this.buildCustomDropdown();
   }
 
@@ -378,7 +418,7 @@ export class App {
     const header = document.createElement('div');
     header.className = 'custom-select-header';
     header.textContent = select.options[select.selectedIndex]?.textContent || 'Seleccionar...';
-    
+
     const list = document.createElement('ul');
     list.className = 'custom-select-list';
 
@@ -389,25 +429,25 @@ export class App {
         groupLabel.className = 'custom-optgroup';
         groupLabel.textContent = child.label;
         list.appendChild(groupLabel);
-        
+
         Array.from(child.children).forEach(opt => {
           const li = document.createElement('li');
           li.className = 'custom-option';
           if (opt.selected) li.classList.add('selected');
           li.textContent = opt.textContent;
           li.dataset.value = opt.value;
-          
+
           li.addEventListener('click', (e) => {
             e.stopPropagation();
             select.value = li.dataset.value;
             header.textContent = li.textContent;
-            
+
             // Update selected class
             list.querySelectorAll('.custom-option').forEach(el => el.classList.remove('selected'));
             li.classList.add('selected');
-            
+
             list.classList.remove('open');
-            
+
             // Trigger change event on native select
             const event = new Event('change');
             select.dispatchEvent(event);
@@ -420,17 +460,17 @@ export class App {
         if (child.selected) li.classList.add('selected');
         li.textContent = child.textContent;
         li.dataset.value = child.value;
-        
+
         li.addEventListener('click', (e) => {
           e.stopPropagation();
           select.value = li.dataset.value;
           header.textContent = li.textContent;
-          
+
           list.querySelectorAll('.custom-option').forEach(el => el.classList.remove('selected'));
           li.classList.add('selected');
-          
+
           list.classList.remove('open');
-          
+
           const event = new Event('change');
           select.dispatchEvent(event);
         });
@@ -453,7 +493,7 @@ export class App {
 
     wrapper.appendChild(header);
     wrapper.appendChild(list);
-    
+
     // Listen for external changes to native select
     select.addEventListener('change', () => {
       header.textContent = select.options[select.selectedIndex]?.textContent || 'Seleccionar...';
@@ -496,20 +536,31 @@ export class App {
       });
     }
 
-    // Target EQ Swap Button
+    // Target EQ Swap Button — rerolls the active target (lifeline)
     const swapTargetBtn = document.getElementById('swapTargetBtn');
     if (swapTargetBtn) {
       swapTargetBtn.addEventListener('click', () => {
-        if (this.targetSwapsRemaining > 0) {
-          this.targetSwapsRemaining--;
-          const badge = document.getElementById('swapCountBadge');
-          if (badge) badge.textContent = `${this.targetSwapsRemaining}/3`;
+        if (this.targetSwapsRemaining <= 0) return;
 
-          if (this.targetSwapsRemaining === 0) {
-            swapTargetBtn.disabled = true;
-            swapTargetBtn.disabled = true;
-            swapTargetBtn.classList.add('disabled');
-          }
+        // For a multitrack session, also move the trained instrument so the
+        // lifeline is not merely a cosmetic counter.
+        const mtSession = this.audio.currentMultitrackSession;
+        if (mtSession) {
+          this.randomizeTargetStem(mtSession);
+        }
+
+        if (this.trainer) {
+          this.trainer.startNewTrial();
+          this.renderQuizInterface();
+        }
+
+        this.targetSwapsRemaining--;
+        const badge = document.getElementById('swapCountBadge');
+        if (badge) badge.textContent = `${this.targetSwapsRemaining}/3`;
+
+        if (this.targetSwapsRemaining === 0) {
+          swapTargetBtn.disabled = true;
+          swapTargetBtn.classList.add('disabled');
         }
       });
     }
@@ -542,7 +593,7 @@ export class App {
 
       const activeIndex = this.visualizer.activeNodeIndex || 0;
       const activeNode = this.visualizer.interactiveNodes[activeIndex];
-      
+
       if (activeNode) {
         activeNode.frequencyHz = freq;
         activeNode.gainDb = effectiveGain;
@@ -566,13 +617,13 @@ export class App {
       btnToggleRta.addEventListener('click', () => {
         if (!this.visualizer) return;
         if (this.visualizer.rtaMode === 'smooth') {
-           this.visualizer.rtaMode = 'raw';
-           rtaModeLabel.textContent = 'RAW';
-           rtaModeLabel.style.color = '#f43f5e';
+          this.visualizer.rtaMode = 'raw';
+          rtaModeLabel.textContent = 'RAW';
+          rtaModeLabel.style.color = '#f43f5e';
         } else {
-           this.visualizer.rtaMode = 'smooth';
-           rtaModeLabel.textContent = 'SMOOTH';
-           rtaModeLabel.style.color = '#38bdf8';
+          this.visualizer.rtaMode = 'smooth';
+          rtaModeLabel.textContent = 'SMOOTH';
+          rtaModeLabel.style.color = '#38bdf8';
         }
       });
     }
@@ -582,7 +633,7 @@ export class App {
     if (btnToggleZoom && zoomModeLabel) {
       btnToggleZoom.addEventListener('click', () => {
         if (!this.visualizer) return;
-        
+
         // Cycle between 60 dB, 30 dB, and 18 dB
         if (!this.visualizer.rtaRange || this.visualizer.rtaRange === 60) {
           this.visualizer.rtaRange = 30;
@@ -632,26 +683,26 @@ export class App {
 
     // Submit Guess Button (Normal / Hard Mode)
     const submitBtn = document.getElementById('submitGuessBtn');
-      if (submitBtn) {
-        submitBtn.addEventListener('click', () => {
-          try {
-            const isModeEasy = this.trainer.difficulty === 'easy';
-            if (!isModeEasy && !this.hasInteracted) {
-              console.warn("Submit aborted: Missing interaction.");
-              return;
-            }
-          
-            // Pausar el sonido al proponer la respuesta
-            if (this.audio && this.audio.isPlaying) {
-              this.audio.stopSource();
-              this.updatePlayButton();
-            }
+    if (submitBtn) {
+      submitBtn.addEventListener('click', () => {
+        try {
+          const isModeEasy = this.trainer.difficulty === 'easy';
+          if (!isModeEasy && !this.hasInteracted) {
+            console.warn("Submit aborted: Missing interaction.");
+            return;
+          }
+
+          // Pausar el sonido al proponer la respuesta
+          if (this.audio && this.audio.isPlaying) {
+            this.audio.stopSource();
+            this.updatePlayButton();
+          }
 
           const userGuessesArray = this.visualizer.interactiveNodes.map(node => ({
-              frequencyHz: node.frequencyHz,
-              gainDb: node.gainDb,
-              qFactor: node.qFactor,
-              type: node.type
+            frequencyHz: node.frequencyHz,
+            gainDb: node.gainDb,
+            qFactor: node.qFactor,
+            type: node.type
           }));
 
           const result = this.trainer.evaluateManualGuess(userGuessesArray);
@@ -673,8 +724,8 @@ export class App {
         if (this.visualizer) this.visualizer.isScrubbing = false;
       });
       transportScrub.addEventListener('input', (e) => {
-          const pct = parseFloat(e.target.value);
-          if (this.audio) this.audio.scrubTo(pct);
+        const pct = parseFloat(e.target.value);
+        if (this.audio) this.audio.scrubTo(pct);
       });
     }
 
@@ -686,15 +737,15 @@ export class App {
         if (file) {
           const url = URL.createObjectURL(file);
           if (sourceSelect) {
-             const opt = document.createElement('option');
-             opt.value = url;
-             opt.text = file.name;
-             sourceSelect.add(opt);
-             sourceSelect.value = url;
+            const opt = document.createElement('option');
+            opt.value = url;
+            opt.text = file.name;
+            sourceSelect.add(opt);
+            sourceSelect.value = url;
           }
           if (this.gameLoop && this.gameLoop.store) {
-             this.gameLoop.store.activeTrackId = url;
-             this.updateTrainerAcousticClass(url);
+            this.gameLoop.store.activeTrackId = url;
+            this.updateTrainerAcousticClass(url);
           }
           this.audio.loadTrack(url, url).then(() => {
             this.checkAndRenderMixer(url);
@@ -709,8 +760,8 @@ export class App {
           if (fileInput) fileInput.click();
         } else if (e.target.value) {
           if (this.gameLoop && this.gameLoop.store) {
-             this.gameLoop.store.activeTrackId = e.target.value;
-             this.updateTrainerAcousticClass(e.target.value);
+            this.gameLoop.store.activeTrackId = e.target.value;
+            this.updateTrainerAcousticClass(e.target.value);
           }
           this.audio.loadTrack(e.target.value).then(() => {
             this.checkAndRenderMixer(e.target.value);
@@ -722,7 +773,7 @@ export class App {
     const pBtnListenTarget = document.getElementById('pBtnListenTarget');
     const pBtnListenGuess = document.getElementById('pBtnListenGuess');
     const pBtnListenFlat = document.getElementById('pBtnListenFlat');
-    
+
     if (pBtnListenTarget) {
       pBtnListenTarget.addEventListener('click', () => {
         this.audio.setRoute('B'); // B = Target EQ
@@ -747,18 +798,23 @@ export class App {
     }
     if (pBtnListenFlat) {
       pBtnListenFlat.addEventListener('click', () => {
-         this.audio.setRoute('A'); // A = Clean / Flat
-         this.updateABButtons('A');
-         if (this.audio && !this.audio.isPlaying) {
-           this.audio.play();
-           this.updatePlayButton();
-         }
+        this.audio.setRoute('A'); // A = Clean / Flat
+        this.updateABButtons('A');
+        if (this.audio && !this.audio.isPlaying) {
+          this.audio.play();
+          this.updatePlayButton();
+        }
       });
     }
 
     const bannerNextBtn = document.getElementById('bannerNextBtn');
     if (bannerNextBtn) {
       bannerNextBtn.addEventListener('click', () => {
+        // If showPedagogicalReview deferred a terminal / level-up modal, open it
+        // now: the player has already read and heard the didactic review, and the
+        // modal's own buttons drive the next step (retry / restart / continue).
+        if (this.openPendingOutcomeModal()) return;
+
         const resultsSection = document.getElementById('resultsDockSection');
         if (resultsSection) resultsSection.classList.add('hidden');
         if (this.visualizer) {
@@ -766,22 +822,52 @@ export class App {
           this.visualizer.showUserCurve = false;
         }
 
+        this.pendingOutcomeModal = null;
         this.gameLoop.nextTrial();
+        // Vary the trained instrument every trial so a session never always asks
+        // about the same stem (e.g. the symphonic "Main Pair").
+        this.rotateMultitrackTarget();
         this.trainer.stage = this.gameLoop.store.currentStage;
         this.trainer.startNewTrial();
         this.renderQuizInterface();
       });
     }
 
+    // ---- Workstream A: Boss / level-up / campaign-complete modal exit actions ----
+    const btnContinueLevelUp = document.getElementById('btnContinueLevelUp');
+    if (btnContinueLevelUp) {
+      btnContinueLevelUp.addEventListener('click', () => {
+        const modal = document.getElementById('levelUpModal');
+        if (modal) modal.classList.remove('active');
+        this.advanceToNextTrial();
+      });
+    }
+
+    const btnRetryBoss = document.getElementById('btnRetryBoss');
+    if (btnRetryBoss) {
+      btnRetryBoss.addEventListener('click', () => {
+        const modal = document.getElementById('bossDefeatModal');
+        if (modal) modal.classList.remove('active');
+        if (this.gameLoop) this.gameLoop.store.currentStage = 4;
+        this.advanceToNextTrial();
+      });
+    }
+
+    const btnCampaignCompleteMenu = document.getElementById('btnCampaignCompleteMenu');
+    if (btnCampaignCompleteMenu) {
+      btnCampaignCompleteMenu.addEventListener('click', () => this.returnToMainMenu());
+    }
+    // ---- end Workstream A ----
+
     const restartGameBtn = document.getElementById('restartGameBtn');
     if (restartGameBtn) {
       restartGameBtn.addEventListener('click', () => {
         if (this.gameLoop && this.gameLoop.resetSession) this.gameLoop.resetSession();
         if (this.trainer && this.trainer.resetSession) this.trainer.resetSession();
-        
+
         const gameOverModal = document.getElementById('gameOverModal');
         if (gameOverModal) gameOverModal.classList.remove('active');
-        
+
         this.setAppState('MODULE_SELECT');
       });
     }
@@ -790,26 +876,82 @@ export class App {
   updateTrainerAcousticClass(trackId) {
     if (!this.trainer) return;
     this.trainer.currentAcousticClass = 'generic';
+    this.trainer.sourceAcousticClass = 'generic';
     this.trainer.isSyntheticMode = false;
-    
+    this.trainer.isMultitrackSession = false;
+    this.trainer.currentTargetStemName = null;
+
     const source = AUDIO_SOURCES.find(s => s.id === trackId);
     if (source) {
-      if (source.acousticClass) this.trainer.currentAcousticClass = source.acousticClass;
+      if (source.acousticClass) {
+        this.trainer.currentAcousticClass = source.acousticClass;
+        this.trainer.sourceAcousticClass = source.acousticClass;
+      }
       if (source.isSynthetic) this.trainer.isSyntheticMode = true;
       return;
     }
-    
+
     const session = MULTITRACK_SESSIONS.find(s => s.id === trackId);
     if (session) {
-      const targetStemId = session.targetStem;
-      if (targetStemId) {
-        const stem = session.stems.find(st => st.id === targetStemId);
-        if (stem && stem.acousticClass) {
-           this.trainer.currentAcousticClass = stem.acousticClass;
-        }
-      }
-      return;
+      // Randomize which stem the filter targets so a session never always
+      // trains the same instrument (e.g. always the main pair / kick).
+      this.randomizeTargetStem(session);
     }
+  }
+
+  /**
+   * Points a multitrack session's target at a specific stem and syncs the
+   * trainer's lesson class. Re-renders the mixer when that session is on screen.
+   * @param {Object|string} sessionOrId Session object or session id
+   * @param {string} stemId Stem id to become the new target
+   */
+  setTargetStem(sessionOrId, stemId) {
+    const session = typeof sessionOrId === 'string'
+      ? MULTITRACK_SESSIONS.find(s => s.id === sessionOrId)
+      : sessionOrId;
+    if (!session || !Array.isArray(session.stems)) return;
+
+    const stem = session.stems.find(st => st.id === stemId);
+    if (!stem) return;
+
+    session.targetStem = stem.id;
+
+    if (this.trainer) {
+      const cls = stem.acousticClass || 'generic';
+      this.trainer.currentAcousticClass = cls;
+      this.trainer.sourceAcousticClass = cls;
+      this.trainer.isSyntheticMode = false;
+      // Tell the trainer we are inside a multitrack mix and which instrument is
+      // being trained, so target generation/review can adapt accordingly.
+      this.trainer.isMultitrackSession = true;
+      this.trainer.currentTargetStemName = stem.displayName || stem.name || stem.id;
+    }
+
+    // Keep the mixer badge in sync if this session is the one being displayed,
+    // and re-apply the Target Spotlight ducking (it keys off session.targetStem,
+    // so it must be refreshed whenever the trained instrument changes).
+    const active = this.audio.currentMultitrackSession;
+    if (active && active.id === session.id) {
+      this.renderStemMixer(session);
+      if (this.audio && typeof this.audio.updateStemVolumes === 'function') {
+        this.audio.updateStemVolumes();
+      }
+    }
+  }
+
+  /**
+   * Rerolls the target stem of a multitrack session (used on load and by the
+   * Target Swap lifeline) so the trained instrument varies between trials.
+   * @param {Object|string} sessionOrId Session object or session id
+   */
+  randomizeTargetStem(sessionOrId) {
+    const session = typeof sessionOrId === 'string'
+      ? MULTITRACK_SESSIONS.find(s => s.id === sessionOrId)
+      : sessionOrId;
+    if (!session) return;
+
+    const next = pickRandomTargetStem(session, session.targetStem);
+    if (next) this.setTargetStem(session, next.id);
   }
 
   hideStemMixer() {
@@ -830,15 +972,15 @@ export class App {
     const panel = document.getElementById('stemMixerPanel');
     const tracksContainer = document.getElementById('stemMixerTracks');
     const title = document.getElementById('stemMixerTitle');
-      
+
     if (!panel || !tracksContainer || !title) return;
-    
+
     panel.classList.remove('hidden');
-    title.textContent = mtSession.name || 'Multitrack Session';
+    title.textContent = mtSession.displayName || mtSession.name || 'Multitrack Session';
     tracksContainer.innerHTML = '';
 
     if (this.stemVuMeters) {
-       this.stemVuMeters.forEach(m => m.stop());
+      this.stemVuMeters.forEach(m => m.stop());
     }
     this.stemVuMeters = [];
 
@@ -849,14 +991,14 @@ export class App {
       const label = document.createElement('span');
       label.className = 'text-xs text-slate-400 font-bold flex items-center gap-2';
       label.textContent = stem.displayName || stem.name;
-      
+
       if (mtSession.targetStem && stem.id === mtSession.targetStem) {
         const targetBadge = document.createElement('span');
         targetBadge.className = 'badge bg-primary text-white text-[10px] px-1 py-0.5 rounded';
         targetBadge.textContent = '🎯 TARGET';
         targetBadge.title = 'Este es el instrumento afectado por el filtro';
         label.appendChild(targetBadge);
-        
+
         // Also highlight the track container lightly
         trackDiv.style.border = '1px solid rgba(56, 189, 248, 0.3)';
         trackDiv.style.backgroundColor = 'rgba(15, 23, 42, 0.6)';
@@ -866,12 +1008,12 @@ export class App {
 
       const controlsRow = document.createElement('div');
       controlsRow.className = 'flex items-center gap-2';
-      
+
       const muteBtn = document.createElement('button');
       const isInitiallyMuted = this.audio.stemStates && this.audio.stemStates[stem.id] ? this.audio.stemStates[stem.id].muted : false;
       muteBtn.className = `btn btn-sm btn-mute ${isInitiallyMuted ? 'active' : ''}`;
       muteBtn.textContent = 'M';
-      
+
       const soloBtn = document.createElement('button');
       const isInitiallySolo = this.audio.stemStates && this.audio.stemStates[stem.id] ? this.audio.stemStates[stem.id].solo : false;
       soloBtn.className = `btn btn-sm btn-solo ${isInitiallySolo ? 'active' : ''}`;
@@ -884,7 +1026,7 @@ export class App {
         this.hasInteracted = true;
         this.updateValidationState();
       };
-      
+
       soloBtn.onclick = () => {
         this.audio.setStemState(stem.id, 'solo');
         soloBtn.classList.toggle('active', this.audio.stemStates[stem.id].solo);
@@ -892,14 +1034,14 @@ export class App {
         this.hasInteracted = true;
         this.updateValidationState();
       };
-      
+
       const stemControls = document.createElement('div');
       stemControls.className = 'stem-controls';
       stemControls.appendChild(muteBtn);
       stemControls.appendChild(soloBtn);
-      
+
       controlsRow.appendChild(stemControls);
-      
+
       const faderContainer = document.createElement('div');
       faderContainer.className = 'stem-fader-container';
       faderContainer.style.position = 'relative';
@@ -912,7 +1054,7 @@ export class App {
       faderContainer.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.8)';
       faderContainer.style.padding = '0';
       faderContainer.style.width = '100%';
-      
+
       const canvas = document.createElement('canvas');
       canvas.id = 'vuMeter-' + stem.id;
       canvas.width = 150;
@@ -923,7 +1065,7 @@ export class App {
       canvas.style.width = '100%';
       canvas.style.pointerEvents = 'none';
       faderContainer.appendChild(canvas);
-      
+
       const volSlider = document.createElement('input');
       volSlider.type = 'range';
       volSlider.className = 'fader-fused';
@@ -953,7 +1095,29 @@ export class App {
       trackDiv.appendChild(controlsRow);
       tracksContainer.appendChild(trackDiv);
     });
-    
+
+    // Target Spotlight: duck the non-target stems so the EQ'd instrument sits
+    // forward and its filter is clearly audible inside the dense mix. Applied
+    // equally to routes A/B/C, so the A/B comparison stays fair.
+    const spotlightBtn = document.getElementById('spotlightToggleBtn');
+    if (spotlightBtn) {
+      const syncSpotlightBtn = () => {
+        const on = !!this.audio.spotlightEnabled;
+        spotlightBtn.textContent = on ? '\uD83C\uDFAF Focus ON' : '\uD83C\uDFAF Focus OFF';
+        spotlightBtn.classList.toggle('active', on);
+        spotlightBtn.title = on
+          ? 'Enfoque activo: los demás stems bajan 6 dB para oír mejor el objetivo'
+          : 'Enfoque desactivado: mezcla completa sin atenuar';
+      };
+      spotlightBtn.onclick = () => {
+        if (typeof this.audio.setSpotlight === 'function') {
+          this.audio.setSpotlight(!this.audio.spotlightEnabled);
+        }
+        syncSpotlightBtn();
+      };
+      syncSpotlightBtn();
+    }
+
     // Ensure VU meters bind correctly if already playing when opened
     this.rebindVuMeters();
   }
@@ -961,18 +1125,18 @@ export class App {
   rebindVuMeters() {
     if (!this.audio.currentMultitrackSession || !this.audio.stemAnalysers) return;
     if (this.stemVuMeters) {
-        this.stemVuMeters.forEach(m => m.stop());
+      this.stemVuMeters.forEach(m => m.stop());
     }
     this.stemVuMeters = [];
     this.audio.currentMultitrackSession.stems.forEach(stem => {
-        if (this.audio.stemAnalysers[stem.id]) {
-            const canvasEl = document.getElementById(`vuMeter-${stem.id}`);
-            if (canvasEl) {
-                const vu = new VUMeter(`vuMeter-${stem.id}`, this.audio.stemAnalysers[stem.id]);
-                this.stemVuMeters.push(vu);
-                if (this.audio.isPlaying) vu.start();
-            }
+      if (this.audio.stemAnalysers[stem.id]) {
+        const canvasEl = document.getElementById(`vuMeter-${stem.id}`);
+        if (canvasEl) {
+          const vu = new VUMeter(`vuMeter-${stem.id}`, this.audio.stemAnalysers[stem.id]);
+          this.stemVuMeters.push(vu);
+          if (this.audio.isPlaying) vu.start();
         }
+      }
     });
   }
 
@@ -1066,13 +1230,41 @@ export class App {
     const scoreEl = document.getElementById('soundgymScore');
     const stageEl = document.getElementById('soundgymStage');
     const rankEl = document.getElementById('soundgymRank');
-    if (scoreEl) scoreEl.textContent = store.score;
-    if (stageEl) stageEl.textContent = (store.currentStage || 1) + '/' + (store.maxStages || 5);
+
+    // Authoritative score field is `totalScore` (was incorrectly read as `store.score`)
+    const totalScore = (typeof store.totalScore === 'number') ? store.totalScore : 0;
+
+    if (scoreEl) scoreEl.textContent = totalScore.toLocaleString();
+
+    // Do NOT clobber the BOSS FIGHT label rendered by renderQuizInterface()
+    if (stageEl && !store.isBossFight) {
+      stageEl.textContent = (store.currentStage || 1) + '/' + (store.maxStages || 5);
+    }
+
     if (rankEl) {
-      if (store.score >= 4000) { rankEl.textContent = 'Pro'; rankEl.style.color = '#e11d48'; }
-      else if (store.score >= 2000) { rankEl.textContent = 'Ingeniero'; rankEl.style.color = '#a855f7'; }
+      if (totalScore >= 4000) { rankEl.textContent = 'Pro'; rankEl.style.color = '#e11d48'; }
+      else if (totalScore >= 2000) { rankEl.textContent = 'Ingeniero'; rankEl.style.color = '#a855f7'; }
       else { rankEl.textContent = 'Tiracables'; rankEl.style.color = '#38bdf8'; }
     }
+
+    this.renderLives(store);
+  }
+
+  /**
+   * Renders remaining lives as hearts into the header lives container.
+   * @param {Object} store GameLoopManager store snapshot
+   */
+  renderLives(store = this.gameLoop ? this.gameLoop.store : null) {
+    const container = document.getElementById('livesContainer');
+    if (!container || !store) return;
+    const maxLives = store.maxLives || 5;
+    const lives = Math.max(0, Math.min(maxLives, typeof store.lives === 'number' ? store.lives : 0));
+    let html = '';
+    for (let i = 0; i < maxLives; i++) {
+      const filled = i < lives;
+      html += `<span class="heart-icon${filled ? '' : ' lost'}" aria-hidden="true">${filled ? '♥' : '♡'}</span>`;
+    }
+    container.innerHTML = html;
   }
   renderQuizInterface() {
     const targets = this.trainer.targetFilters;
@@ -1094,7 +1286,7 @@ export class App {
     if (falseFriendsCard) falseFriendsCard.classList.add('hidden');
     const proAnalysisCard = document.getElementById('proAnalysisCard');
     if (proAnalysisCard) proAnalysisCard.classList.add('hidden');
-    
+
     // Show top bar EQ toggles
     const eqToggleGroup = document.querySelector('.eq-toggle-group');
     if (eqToggleGroup) eqToggleGroup.classList.remove('hidden');
@@ -1103,16 +1295,18 @@ export class App {
     this.audio.setRoute('A');
     this.updateABButtons('A');
 
-    const isBoss = this.trainer.isBossStage;
-    
+    const isBoss = (this.gameLoop && this.gameLoop.store) ? !!this.gameLoop.store.isBossFight : this.trainer.isBossStage;
+
     // Boss Mode UI Update
     const stageValEl = document.getElementById('soundgymStage');
     if (stageValEl) {
-        if (isBoss) {
-            stageValEl.innerHTML = `⚠️ <span class="text-danger" style="animation: pulse 1s infinite">BOSS FIGHT</span>`;
-        } else {
-            stageValEl.innerHTML = `${this.trainer.stage}/${this.trainer.maxStages}`;
-        }
+      if (isBoss) {
+        stageValEl.innerHTML = `⚠️ <span class="text-danger" style="animation: pulse 1s infinite">BOSS FIGHT</span>`;
+      } else {
+        const curStage = (this.gameLoop && this.gameLoop.store) ? (this.gameLoop.store.currentStage || 1) : (this.trainer.stage || 1);
+        const maxStage = (this.gameLoop && this.gameLoop.store) ? (this.gameLoop.store.maxStages || 5) : (this.trainer.maxStages || 5);
+        stageValEl.textContent = `${curStage}/${maxStage}`;
+      }
     }
 
     if (this.visualizer) {
@@ -1120,14 +1314,14 @@ export class App {
       this.visualizer.showTargetCurve = false;
       this.visualizer.showUserCurve = false;
       this.visualizer.didacticUsers = [];
-      
+
       // Setup interactive nodes based on target length (Boss mode: 500Hz & 2000Hz to avoid overlapping; Normal mode: 1000Hz)
       this.visualizer.interactiveNodes = targets.map((_, i) => ({
-          frequencyHz: isBoss ? (i === 0 ? 500 : 2000) : 1000,
-          gainDb: 0,
-          qFactor: 2.0,
-          type: 'peaking',
-          isDragging: false
+        frequencyHz: isBoss ? (i === 0 ? 500 : 2000) : 1000,
+        gainDb: 0,
+        qFactor: 2.0,
+        type: 'peaking',
+        isDragging: false
       }));
       this.visualizer.activeNodeIndex = 0;
     }
@@ -1294,16 +1488,16 @@ export class App {
     }
 
     if (result.bandResults && result.bandResults.length > 0) {
-        // Collect user guesses from band results
-        const userGuesses = result.bandResults.map(br => br.guess);
-        this.audio.setUserEQ(userGuesses);
+      // Collect user guesses from band results
+      const userGuesses = result.bandResults.map(br => br.guess);
+      this.audio.setUserEQ(userGuesses);
 
-        if (this.visualizer) {
-            this.visualizer.didacticUsers = userGuesses.map(g => ({ ...g }));
-            // Only show user curve if not perfectly exact
-            const isExactHit = (result.scorePercentage === 100);
-            this.visualizer.showUserCurve = !isExactHit;
-        }
+      if (this.visualizer) {
+        this.visualizer.didacticUsers = userGuesses.map(g => ({ ...g }));
+        // Only show user curve if not perfectly exact
+        const isExactHit = (result.scorePercentage === 100);
+        this.visualizer.showUserCurve = !isExactHit;
+      }
     } else {
       if (this.visualizer) {
         this.visualizer.didacticUsers = [];
@@ -1322,89 +1516,120 @@ export class App {
     let subtitleText = '';
 
     if (this.trainer.isBossStage) {
-        subtitleText = `Objetivo: Boss Fight Multi-Banda (${targets.length} Filtros)`;
+      subtitleText = `Objetivo: Boss Fight Multi-Banda (${targets.length} Filtros)`;
     } else {
-        const filtersWithoutGain = ['notch', 'highpass', 'lowpass', 'hp', 'lp'];
-        const targetTypeLower = (target.type || '').toLowerCase();
-        const isTargetNoGain = filtersWithoutGain.includes(targetTypeLower);
-        const targetGainStr = isTargetNoGain ? '' : ` (${target.gainDb > 0 ? '+' : ''}${target.gainDb.toFixed(1)} dB)`;
+      const filtersWithoutGain = ['notch', 'highpass', 'lowpass', 'hp', 'lp'];
+      const targetTypeLower = (target.type || '').toLowerCase();
+      const isTargetNoGain = filtersWithoutGain.includes(targetTypeLower);
+      const targetGainStr = isTargetNoGain ? '' : ` (${target.gainDb > 0 ? '+' : ''}${target.gainDb.toFixed(1)} dB)`;
 
-        const targetTypeStr = this.formatFilterTypeName(target.type);
-        subtitleText = `Objetivo: ${targetTypeStr} ${Math.round(target.frequencyHz)} Hz${targetGainStr}`;
+      const targetTypeStr = this.formatFilterTypeName(target.type);
+      subtitleText = `Objetivo: ${targetTypeStr} ${Math.round(target.frequencyHz)} Hz${targetGainStr}`;
 
-        if (this.trainer.difficulty === 'hard') {
-          if (result.isTypeCorrect) {
-            subtitleText += ` <span style="color:#10b981; font-weight:bold; margin-left:8px;">\u2728 Filtro Acertado! (+100 PTS)</span>`;
-          } else if (result.userType) {
-            subtitleText += ` <span style="color:#f43f5e; font-weight:bold; margin-left:8px;">\u274C Filtro Incorrecto (${this.formatFilterTypeName(result.userType)})</span>`;
-          }
+      if (this.trainer.difficulty === 'hard') {
+        if (result.isTypeCorrect) {
+          subtitleText += ` <span style="color:#10b981; font-weight:bold; margin-left:8px;">\u2728 Filtro Acertado! (+100 PTS)</span>`;
+        } else if (result.userType) {
+          subtitleText += ` <span style="color:#f43f5e; font-weight:bold; margin-left:8px;">\u274C Filtro Incorrecto (${this.formatFilterTypeName(result.userType)})</span>`;
         }
+      }
+    }
+
+    // In a multitrack session, name the instrument being trained so the player
+    // immediately knows which stem the filter is applied to (not always the same).
+    const mtReviewSession = this.audio ? this.audio.currentMultitrackSession : null;
+    if (mtReviewSession && Array.isArray(mtReviewSession.stems)) {
+      const tgtStem = mtReviewSession.stems.find(s => s.id === mtReviewSession.targetStem);
+      if (tgtStem) {
+        const stemName = tgtStem.displayName || tgtStem.name || 'Stem';
+        subtitleText += ` <span style="color:#38bdf8; font-weight:bold; margin-left:8px;">\uD83C\uDFAF ${stemName}</span>`;
+      }
     }
 
     if (subtitle) subtitle.innerHTML = subtitleText;
 
     if (icon && title) {
-        if (result.isPolarityFlipped) {
-          icon.textContent = '\u26A0\uFE0F';
-          title.textContent = cleanLabel || 'Ganancia Opuesta';
-          title.className = 'results-title warning';
-        } else if (result.isCorrect) {
-          icon.textContent = '\u2728';
-          title.textContent = cleanLabel || 'Excelente!';
-          title.className = 'results-title success';
-        } else {
-          icon.textContent = '\u274C';
-          title.textContent = cleanLabel || 'Revisión Didáctica';
-          title.className = 'results-title failure';
-        }
+      if (result.isPolarityFlipped) {
+        icon.textContent = '\u26A0\uFE0F';
+        title.textContent = cleanLabel || 'Ganancia Opuesta';
+        title.className = 'results-title warning';
+      } else if (result.isCorrect) {
+        icon.textContent = '\u2728';
+        title.textContent = cleanLabel || 'Excelente!';
+        title.className = 'results-title success';
+      } else {
+        icon.textContent = '\u274C';
+        title.textContent = cleanLabel || 'Revisión Didáctica';
+        title.className = 'results-title failure';
       }
+    }
 
-      // Update UI Stats Elements
-      const statPoints = document.getElementById('pStatPoints');
-      const statScore = document.getElementById('pStatScore');
-      const statFreqErr = document.getElementById('pStatFreqError');
-      const statGainErr = document.getElementById('pStatGainError');
+    // Update UI Stats Elements
+    const statPoints = document.getElementById('pStatPoints');
+    const statScore = document.getElementById('pStatScore');
+    const statFreqErr = document.getElementById('pStatFreqError');
+    const statGainErr = document.getElementById('pStatGainError');
 
-      if (statPoints) {
-          statPoints.textContent = `+${(result.pointsAwarded || 0).toLocaleString()}`;
-          statPoints.className = (result.pointsAwarded > 0) ? 'stat-value text-amber' : 'stat-value text-gray';
-      }
-      if (statScore) {
-          statScore.textContent = `${result.scorePercentage || 0}%`;
-          statScore.className = (result.scorePercentage >= 80) ? 'stat-value text-cyan' : ((result.scorePercentage >= 40) ? 'stat-value text-amber' : 'stat-value text-danger');
-      }
-      if (statFreqErr) {
-          statFreqErr.textContent = `${(result.octaveDistance || 0).toFixed(2)} oct`;
-      }
-      if (statGainErr) {
-          statGainErr.textContent = `${(result.gainErrorDb || 0).toFixed(1)} dB`;
-      }
+    if (statPoints) {
+      statPoints.textContent = `+${(result.pointsAwarded || 0).toLocaleString()}`;
+      statPoints.className = (result.pointsAwarded > 0) ? 'stat-value text-amber' : 'stat-value text-gray';
+    }
+    if (statScore) {
+      statScore.textContent = `${result.scorePercentage || 0}%`;
+      statScore.className = (result.scorePercentage >= 80) ? 'stat-value text-cyan' : ((result.scorePercentage >= 40) ? 'stat-value text-amber' : 'stat-value text-danger');
+    }
+    if (statFreqErr) {
+      statFreqErr.textContent = `${(result.octaveDistance || 0).toFixed(2)} oct`;
+    }
+    if (statGainErr) {
+      statGainErr.textContent = `${(result.gainErrorDb || 0).toFixed(1)} dB`;
+    }
 
     // Evaluate game loop trial outcome
     this.lastGameOutcome = this.gameLoop ? this.gameLoop.evaluateTrialOutcome(result.scorePercentage, result.pointsAwarded || 0) : null;
     const gameOutcome = this.lastGameOutcome;
 
-    // Show Level Up / Game Over modals
-    if (gameOutcome) {
-      if (gameOutcome.isLevelUp) {
-        this.showLevelUpModal(gameOutcome);
-      } else if (gameOutcome.isGameOver) {
-        if (gameOutcome.isBossDefeated) {
-          this.showBossDefeatModal(gameOutcome);
-        } else {
-          this.showGameOverModal(gameOutcome);
-        }
-      }
+    // Defer the terminal / level-up modal instead of showing it immediately.
+    // Opening it here covered the didactic review the instant the last life was
+    // lost, so the player never saw WHY or HOW they failed. We stash it and
+    // surface it from the results CTA (#bannerNextBtn) after the review is read.
+    this.pendingOutcomeModal = null;
+    if (gameOutcome && gameOutcome.isLevelUp) {
+      this.pendingOutcomeModal = { kind: 'levelUp', outcome: gameOutcome };
+    } else if (gameOutcome && gameOutcome.isGameOver) {
+      this.pendingOutcomeModal = {
+        kind: gameOutcome.isBossDefeated ? 'bossDefeat' : 'gameOver',
+        outcome: gameOutcome
+      };
+    }
+
+    const bannerCta = document.getElementById('bannerNextBtn');
+    if (bannerCta) {
+      const ctaLabels = {
+        levelUp: 'Ver Subida de Nivel ➔',
+        bossDefeat: 'Ver Fin del Boss ➔',
+        gameOver: 'Ver Fin de Partida ➔'
+      };
+      bannerCta.textContent = (this.pendingOutcomeModal && ctaLabels[this.pendingOutcomeModal.kind]) || 'Siguiente Ensayo ➔';
+      bannerCta.classList.toggle('cta-terminal', !!this.pendingOutcomeModal);
     }
 
     const guess = result.bandResults ? result.bandResults[0]?.guess : null;
     const audioContextStr = this.audio ? (this.audio.currentTrackId || this.audio.currentBufferName || "") : "";
 
+    // Resolve the pedagogical class once — prefer the class embedded in the
+    // evaluated target (guaranteed to match the trial actually played), then the
+    // trainer's in-flight class, then the raw track id/name hint. This keeps the
+    // didactic teaching curve aligned with the quiz's instrument.
+    const acousticClass = (target && target.acousticClass)
+      || (this.trainer && this.trainer.currentAcousticClass)
+      || resolveAcousticClassKey(audioContextStr);
+
     // False Friends Analysis
     const falseFriendsCard = document.getElementById('falseFriendsCard');
     const falseFriendsMsg = document.getElementById('falseFriendsMessage');
     const falseFriendsFeedback = checkFilterFalseFriends(target, guess);
-    
+
     if (falseFriendsCard && falseFriendsMsg) {
       if (falseFriendsFeedback) {
         falseFriendsMsg.textContent = falseFriendsFeedback;
@@ -1417,18 +1642,18 @@ export class App {
     // Acoustic Context / General Feedback
     const acousticContextCard = document.getElementById('acousticContextCard');
     const acousticContextMsg = document.getElementById('acousticContextMessage');
-    let pedagogicalContext = guess ? ScoringEngine.getPedagogicalFeedback(audioContextStr, guess.frequencyHz, guess.gainDb) : null;
-    
+    let pedagogicalContext = guess ? ScoringEngine.getPedagogicalFeedback(acousticClass, guess.frequencyHz, guess.gainDb) : null;
+
     if (acousticContextCard && acousticContextMsg) {
-       if (pedagogicalContext && pedagogicalContext.text) {
-           acousticContextMsg.textContent = pedagogicalContext.text;
-           acousticContextCard.classList.remove('hidden');
-       } else if (result.feedbackMessage) {
-           acousticContextMsg.textContent = result.feedbackMessage;
-           acousticContextCard.classList.remove('hidden');
-       } else {
-           acousticContextCard.classList.add('hidden');
-       }
+      if (pedagogicalContext && pedagogicalContext.text) {
+        acousticContextMsg.textContent = pedagogicalContext.text;
+        acousticContextCard.classList.remove('hidden');
+      } else if (result.feedbackMessage) {
+        acousticContextMsg.textContent = result.feedbackMessage;
+        acousticContextCard.classList.remove('hidden');
+      } else {
+        acousticContextCard.classList.add('hidden');
+      }
     }
 
     // Pro Mode Analysis
@@ -1438,7 +1663,7 @@ export class App {
 
     if (isProMode && proCard && proTerminal) {
       if (resultsSection) resultsSection.classList.add('pro-mode-active');
-      const proAnalysis = analyzeProPractices(target, guess, audioContextStr);
+      const proAnalysis = analyzeProPractices(target, guess, acousticClass);
       proTerminal.innerHTML = '';
       const item = document.createElement('div');
       item.className = proAnalysis.isWarning ? 'pro-terminal-item' : 'pro-terminal-item pro-terminal-ok';
@@ -1452,11 +1677,75 @@ export class App {
   }
 
   showLevelUpModal(outcome) {
+    // Campaign end-state: the final rank was reached -> show the farewell screen instead
+    const isCampaign = !!(this.gameLoop && this.gameLoop.store && this.gameLoop.store.activeGameMode === 'campaign');
+    const reachedMax = !!(outcome && typeof outcome.newLevel === 'number' && outcome.newLevel > this.maxLevels);
+    if (isCampaign && reachedMax) {
+      this.showCampaignCompleteModal();
+      return;
+    }
+
     const modal = document.getElementById('levelUpModal');
     if (!modal) return;
     const rankTitleEl = document.getElementById('modalNewRankTitle');
-    if (rankTitleEl) rankTitleEl.textContent = outcome.rankTitle || 'Técnico de Sonido';
+    if (rankTitleEl) rankTitleEl.textContent = (outcome && outcome.rankTitle) || 'Técnico de Sonido';
     modal.classList.add('active');
+  }
+
+  /**
+   * Opens the modal deferred by showPedagogicalReview (game over / boss defeat /
+   * level up) so the didactic review is seen first. The modal's own buttons then
+   * drive the next step. Returns true when a modal was actually opened.
+   * @returns {boolean}
+   */
+  openPendingOutcomeModal() {
+    const pending = this.pendingOutcomeModal;
+    if (!pending) return false;
+    this.pendingOutcomeModal = null;
+    if (pending.kind === 'levelUp') {
+      this.showLevelUpModal(pending.outcome);
+    } else if (pending.kind === 'bossDefeat') {
+      this.showBossDefeatModal(pending.outcome);
+    } else {
+      this.showGameOverModal(pending.outcome);
+    }
+    return true;
+  }
+
+  /**
+   * Rerolls the trained stem of the active multitrack session (if any) so every
+   * trial trains a different instrument rather than always the first stem
+   * (e.g. the symphonic "Main Pair"). No-op for single-file sources.
+   */
+  rotateMultitrackTarget() {
+    const mtSession = this.audio ? this.audio.currentMultitrackSession : null;
+    if (mtSession) this.randomizeTargetStem(mtSession);
+  }
+
+  /**
+   * Advances to the next trial from any results/modal context (shared by Continue and Retry).
+   */
+  advanceToNextTrial() {
+    const resultsSection = document.getElementById('resultsDockSection');
+    if (resultsSection) resultsSection.classList.add('hidden');
+    if (this.visualizer) {
+      this.visualizer.showTargetCurve = false;
+      this.visualizer.showUserCurve = false;
+    }
+
+    this.pendingOutcomeModal = null;
+
+    if (this.gameLoop) this.gameLoop.nextTrial();
+    // Vary the trained instrument before generating the new target so the quiz
+    // never keeps asking about the same stem all session long.
+    this.rotateMultitrackTarget();
+    if (this.trainer) {
+      if (this.gameLoop) this.trainer.stage = this.gameLoop.store.currentStage;
+      this.trainer.startNewTrial();
+    }
+
+    this.renderHUD();
+    this.renderQuizInterface();
   }
 
   triggerLevelUpAnimation() {
@@ -1579,14 +1868,61 @@ export class App {
     const finalScorePoints = document.getElementById('finalScorePoints');
     const finalStreak = document.getElementById('finalStreak');
     const finalScore = document.getElementById('finalScore');
+    const finalRank = document.getElementById('finalRank');
+    const finalLevel = document.getElementById('finalLevel');
+    const finalStage = document.getElementById('finalStage');
 
-    if (finalScorePoints) finalScorePoints.textContent = this.trainer.scorePoints.toLocaleString();
+    const store = this.gameLoop ? this.gameLoop.store : null;
+
+    if (finalScorePoints) {
+      finalScorePoints.textContent = (this.trainer.scorePoints || 0).toLocaleString();
+    }
     if (finalStreak) finalStreak.textContent = this.trainer.streak;
     if (finalScore) {
       const avg = this.trainer.totalTrials > 0 ? Math.round(this.trainer.totalScoreSum / this.trainer.totalTrials) : 0;
       finalScore.textContent = `${avg}%`;
     }
+    if (finalRank) {
+      finalRank.textContent = (this.trainer && this.trainer.getRankTitle) ? this.trainer.getRankTitle() : 'Tiracables';
+    }
+    if (finalLevel) {
+      finalLevel.textContent = store ? `${store.currentLevel}` : '1';
+    }
+    if (finalStage) {
+      finalStage.textContent = store ? `${store.currentStage}/${store.maxStages}` : '1/5';
+    }
+
+    // Stop audio so Game Over never "hangs with background sound"
+    if (this.audio && this.audio.stopAllAudio) this.audio.stopAllAudio();
+
     modal.classList.add('active');
+  }
+
+  /**
+   * Campaign completed: farewell screen (thank-you + return to menu).
+   */
+  showCampaignCompleteModal() {
+    const modal = document.getElementById('campaignCompleteModal');
+    if (this.audio && this.audio.stopAllAudio) this.audio.stopAllAudio();
+    if (!modal) return;
+    modal.classList.add('active');
+  }
+
+  /**
+   * Returns to the main menu, silencing audio and resetting session state.
+   */
+  returnToMainMenu() {
+    ['campaignCompleteModal', 'levelUpModal', 'bossDefeatModal', 'gameOverModal'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('active');
+    });
+
+    if (this.audio && this.audio.stopAllAudio) this.audio.stopAllAudio();
+    if (this.gameLoop && this.gameLoop.resetSession) this.gameLoop.resetSession();
+    if (this.trainer && this.trainer.resetSession) this.trainer.resetSession();
+
+    this.renderHUD();
+    this.setAppState('MODULE_SELECT');
   }
 
 
@@ -1594,8 +1930,8 @@ export class App {
     const select = document.getElementById('sourceSelect');
     if (select) {
       if (this.gameLoop && this.gameLoop.store) {
-          this.gameLoop.store.activeTrackId = select.value;
-          this.updateTrainerAcousticClass(select.value);
+        this.gameLoop.store.activeTrackId = select.value;
+        this.updateTrainerAcousticClass(select.value);
       }
       await this.audio.loadTrack(select.value);
       this.checkAndRenderMixer(select.value);
@@ -1606,7 +1942,7 @@ export class App {
     this.audio.isStemMixerActive = !this.audio.isStemMixerActive;
     const btn = document.getElementById('btnStemMixer');
     if (btn) btn.classList.toggle('active', this.audio.isStemMixerActive);
-    
+
     // Inject unbreakable CSS for faders to bypass any cache
     let faderStyle = document.getElementById('fader-override-style');
     if (!faderStyle) {
@@ -1649,31 +1985,31 @@ export class App {
     }
 
     if (this.audio.isStemMixerActive) {
-      if (!this.audio.currentMtSession) {
-        const defaultSession = multitrackSessions[0];
+      if (!this.audio.currentMultitrackSession) {
+        const defaultSession = MULTITRACK_SESSIONS[0];
         if (defaultSession) {
           this.audio.loadAudioSource(defaultSession.id);
         }
       }
-      this.renderStemMixer(this.audio.currentMtSession || { stems: [], name: 'No Session' });
-      
+      this.renderStemMixer(this.audio.currentMultitrackSession || { stems: [], displayName: 'No Session' });
+
       // Force Layout Hard
       const workspace = document.getElementById('workspace');
       if (workspace) {
-         workspace.style.display = 'flex';
-         workspace.style.flexDirection = 'row';
+        workspace.style.display = 'flex';
+        workspace.style.flexDirection = 'row';
       }
       const canvas = document.getElementById('visualizerCanvas');
       if (canvas) {
-         canvas.style.flex = '1 1 0%';
-         canvas.style.minWidth = '0px';
-         canvas.style.width = '0px';
+        canvas.style.flex = '1 1 0%';
+        canvas.style.minWidth = '0px';
+        canvas.style.width = '0px';
       }
       const panel = document.getElementById('stemMixerPanel');
       if (panel) {
-         panel.style.position = 'relative';
-         panel.style.width = '320px';
-         panel.style.flex = '0 0 320px';
+        panel.style.position = 'relative';
+        panel.style.width = '320px';
+        panel.style.flex = '0 0 320px';
       }
 
       if (this.visualizer) setTimeout(() => this.visualizer.resize(), 50);

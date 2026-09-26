@@ -24,7 +24,15 @@ export const RANKS = [
 ];
 
 export class GameLoopManager {
-  constructor() {
+  /**
+   * @param {import('./ScoringEngine.js').ScoringEngine|null} [scoringEngine=null]
+   * Motor de puntuación inyectado. Se guarda para honrar la dependencia en lugar
+   * de descartarla silenciosamente según lo detectado en el plan de reparación.
+   */
+  constructor(scoringEngine = null) {
+    /** @type {import('./ScoringEngine.js').ScoringEngine|null} */
+    this.scoringEngine = scoringEngine;
+
     /** @type {string} */
     this.currentState = GAME_STATES.IDLE;
 

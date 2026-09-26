@@ -1,5 +1,5 @@
 /**
- * @file Visualizer.js
+ * @file Visualizer_v2.js
  * @description FabFilter / Pro-Q style Real-Time 60 FPS Canvas Spectral Visualizer (RTA).
  * Features:
  * 1. Interactive EQ Filter Response Block (getFrequencyResponse) drawn underneath the spectrum line,
@@ -18,9 +18,11 @@ export class Visualizer {
     this.canvas = canvas;
     this.audioEngine = audioEngine;
     this.ctx = canvas.getContext('2d', { alpha: false }); // Opaque optimization
-    
-    // Default to 4096 since AudioEngine uses fftSize 8192 (frequencyBinCount = 4096)
-    this.fftBuffer = new Float32Array(4096).fill(-140.0);
+
+    // Authoritative FFT data buffer. AudioEngine's analyser uses fftSize = 32768
+    // (frequencyBinCount = 16384). drawSpectrum() re-syncs this defensively if the
+    // analyser size ever changes, so this is only the initial allocation.
+    this.fftBuffer = new Float32Array(16384).fill(-140.0);
 
     // Canvas Dimensions & Scaling relative to parent #workspace grid cell
     this.width = window.innerWidth;
@@ -58,9 +60,6 @@ export class Visualizer {
     this.onNodeChange = null;
     this.onBandSelected = null; // Callback when a different band is clicked/dragged
 
-    // High-Resolution FFT Data Buffer (16384 FFT = 8192 Bins)
-    this.fftBuffer = new Float32Array(8192).fill(-140.0);
-
     // 1/3 Octave ISO Frequencies bounded strictly between 20 Hz and 20000 Hz
     this.soundgymFrequencies = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000];
 
@@ -84,7 +83,7 @@ export class Visualizer {
    */
   setNodes(nodesArray) {
     if (!Array.isArray(nodesArray)) return;
-    
+
     // Clonamos para mantener el estado local y reactividad de UI segura
     this.interactiveNodes = nodesArray.map(n => ({
       frequencyHz: n.frequencyHz || 1000,
@@ -143,15 +142,15 @@ export class Visualizer {
       // Hit Detection (Detección de Clic)
       let minDistance = Infinity;
       let nearestIndex = 0;
-      
+
       this.interactiveNodes.forEach((node, idx) => {
-          const nodeX = this.freqToX(node.frequencyHz);
-          const nodeY = this.gainToY(node.gainDb);
-          const dist = Math.hypot(nodeX - pos.x, nodeY - pos.y);
-          if (dist < minDistance) {
-              minDistance = dist;
-              nearestIndex = idx;
-          }
+        const nodeX = this.freqToX(node.frequencyHz);
+        const nodeY = this.gainToY(node.gainDb);
+        const dist = Math.hypot(nodeX - pos.x, nodeY - pos.y);
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearestIndex = idx;
+        }
       });
 
       // Si la distancia es menor a 15px, iniciar el arrastre
@@ -159,9 +158,9 @@ export class Visualizer {
         this.activeNodeIndex = nearestIndex;
         const activeNode = this.interactiveNodes[this.activeNodeIndex];
         activeNode.isDragging = true;
-        
+
         if (this.onBandSelected) {
-            this.onBandSelected(this.activeNodeIndex);
+          this.onBandSelected(this.activeNodeIndex);
         }
         e.preventDefault();
       }
@@ -180,7 +179,7 @@ export class Visualizer {
       this.hoverPos.active = true;
 
       if (!this.showNodeHandle) return;
-      
+
       const activeNode = this.interactiveNodes[this.activeNodeIndex];
       if (!activeNode || !activeNode.isDragging) return;
 
@@ -210,21 +209,21 @@ export class Visualizer {
     this.canvas.addEventListener('wheel', (e) => {
       if (!this.showNodeHandle) return;
       e.preventDefault();
-      
+
       // Determine nearest node to mouse cursor to change its Q
       const pos = getPos(e);
       let minDistance = Infinity;
       let nearestIndex = 0;
       this.interactiveNodes.forEach((node, idx) => {
-          const nodeX = this.freqToX(node.frequencyHz);
-          const nodeY = this.gainToY(node.gainDb);
-          const dist = Math.hypot(nodeX - pos.x, nodeY - pos.y);
-          if (dist < minDistance) {
-              minDistance = dist;
-              nearestIndex = idx;
-          }
+        const nodeX = this.freqToX(node.frequencyHz);
+        const nodeY = this.gainToY(node.gainDb);
+        const dist = Math.hypot(nodeX - pos.x, nodeY - pos.y);
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearestIndex = idx;
+        }
       });
-      
+
       this.activeNodeIndex = nearestIndex;
       if (this.onBandSelected) this.onBandSelected(this.activeNodeIndex);
 
@@ -272,7 +271,7 @@ export class Visualizer {
   }
 
   // ─── Logarithmic Frequency Scale (20 Hz to 20000 Hz) ─────────────────────
-  
+
   freqToX(freq) {
     const f = Math.max(20, Math.min(20000, freq));
     return (Math.log10(f / 20) / Math.log10(1000)) * this.width;
@@ -295,7 +294,7 @@ export class Visualizer {
   gainToY(gainDb) {
     const { RTA_TOP_DBFS, RTA_BOTTOM_DBFS, RTA_RANGE, eqZeroDbFS } = this.getRtaBounds();
     const pixelsPerDb = this.height / RTA_RANGE;
-    
+
     const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
     const eqZeroY = this.height - normEqZero * this.height;
 
@@ -305,7 +304,7 @@ export class Visualizer {
   yToGain(y) {
     const { RTA_TOP_DBFS, RTA_BOTTOM_DBFS, RTA_RANGE, eqZeroDbFS } = this.getRtaBounds();
     const pixelsPerDb = this.height / RTA_RANGE;
-    
+
     const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
     const eqZeroY = this.height - normEqZero * this.height;
 
@@ -342,36 +341,36 @@ export class Visualizer {
       // 2. Draw Interactive EQ Filter Response Block (BEFORE drawing RTA spectrum)
       if (this.showUserCurve && this.interactiveNodes && this.interactiveNodes.length > 0) {
         const isEqOff = this.audioEngine && this.audioEngine.activeRoute === 'A';
-        
+
         this.interactiveNodes.forEach((node, idx) => {
-          const strokeColor = isEqOff 
-              ? "rgba(150, 150, 150, 0.5)" // Gray in Bypass
-              : (idx === this.activeNodeIndex ? "rgba(0, 242, 254, 0.9)" : "rgba(0, 242, 254, 0.5)");
+          const strokeColor = isEqOff
+            ? "rgba(150, 150, 150, 0.5)" // Gray in Bypass
+            : (idx === this.activeNodeIndex ? "rgba(0, 242, 254, 0.9)" : "rgba(0, 242, 254, 0.5)");
           const fillColor = isEqOff
-              ? "rgba(150, 150, 150, 0.1)"
-              : (idx === this.activeNodeIndex ? "rgba(0, 242, 254, 0.15)" : "rgba(0, 242, 254, 0.05)");
+            ? "rgba(150, 150, 150, 0.1)"
+            : (idx === this.activeNodeIndex ? "rgba(0, 242, 254, 0.15)" : "rgba(0, 242, 254, 0.05)");
 
           this.drawFilterCurveFromConfig(node, strokeColor, fillColor);
         });
       }
 
       if (this.showTargetCurve && this.audioEngine.targetGraphNodes) {
-        this.drawToleranceZone(); 
-        
+        this.drawToleranceZone();
+
         for (let i = 0; i < this.audioEngine.targetGraphNodes.length; i++) {
-            const filter = this.audioEngine.targetGraphNodes[i];
-            if (filter && typeof filter.getFrequencyResponse === 'function') {
-                // High contrast orange for target curve
-                this.drawFilterCurve(filter, 'rgba(245, 158, 11, 0.9)', 'rgba(245, 158, 11, 0.15)');
-            }
+          const filter = this.audioEngine.targetGraphNodes[i];
+          if (filter && typeof filter.getFrequencyResponse === 'function') {
+            // High contrast orange for target curve
+            this.drawFilterCurve(filter, 'rgba(245, 158, 11, 0.9)', 'rgba(245, 158, 11, 0.15)');
+          }
         }
-        
+
         if (this.showUserCurve && this.interactiveNodes) {
-            for (let i = 0; i < this.interactiveNodes.length; i++) {
-                this.drawFilterCurveFromConfig(this.interactiveNodes[i], 'rgba(192, 132, 252, 0.8)', 'rgba(192, 132, 252, 0.15)');
-            }
+          for (let i = 0; i < this.interactiveNodes.length; i++) {
+            this.drawFilterCurveFromConfig(this.interactiveNodes[i], 'rgba(192, 132, 252, 0.8)', 'rgba(192, 132, 252, 0.15)');
+          }
         }
-        
+
         if (this.showPhaseCurve || this.isProMode) {
           if (this.audioEngine.targetGraphNodes && this.audioEngine.targetGraphNodes.length > 0) {
             this.drawPhaseCurve(this.audioEngine.targetGraphNodes, '#ec4899');
@@ -393,7 +392,7 @@ export class Visualizer {
       if (this.hoverPos.active) {
         let anyDragging = false;
         if (this.interactiveNodes) {
-           anyDragging = this.interactiveNodes.some(node => node.isDragging);
+          anyDragging = this.interactiveNodes.some(node => node.isDragging);
         }
         if (!anyDragging) {
           this.drawHoverReadout();
@@ -434,19 +433,19 @@ export class Visualizer {
       ctx.stroke();
 
       let label;
-    if (freq >= 1000) {
-      if (freq === 20000) label = '20k';
-      else if (freq === 3150) label = '3.15k';
-      else if (freq === 1250) label = '1.25k';
-      else label = `${freq / 1000}k`;
-    } else {
-      label = `${freq}`;
-    }
+      if (freq >= 1000) {
+        if (freq === 20000) label = '20k';
+        else if (freq === 3150) label = '3.15k';
+        else if (freq === 1250) label = '1.25k';
+        else label = `${freq / 1000}k`;
+      } else {
+        label = `${freq}`;
+      }
 
       // Draw background pill for text
       ctx.fillStyle = 'rgba(11, 12, 16, 0.8)';
       let textWidth = ctx.measureText(label).width;
-      
+
       if (freq === 20) {
         ctx.textAlign = 'left';
         ctx.fillRect(10, textY - 10, textWidth + 4, 14);
@@ -464,7 +463,7 @@ export class Visualizer {
         ctx.fillText('20', 45, textY); // Shifted right to avoid dBFS overlap
       } else {
         ctx.textAlign = 'center';
-        ctx.fillRect(x - textWidth/2 - 2, textY - 10, textWidth + 4, 14);
+        ctx.fillRect(x - textWidth / 2 - 2, textY - 10, textWidth + 4, 14);
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.fillText(label, x, textY);
       }
@@ -472,7 +471,7 @@ export class Visualizer {
 
     // 2. Escala global del RTA recortada a bounds dinámicos (Maximizando resolución visual y anclaje)
     const { RTA_TOP_DBFS, RTA_BOTTOM_DBFS, RTA_RANGE, eqZeroDbFS } = this.getRtaBounds();
-    
+
     // Coordenada Y exacta para la línea nominal de 0dB del ecualizador (anclada a -18 dBFS)
     const normEqZero = (eqZeroDbFS - RTA_BOTTOM_DBFS) / RTA_RANGE;
     this.eqZeroY = this.height - normEqZero * this.height;
@@ -484,11 +483,11 @@ export class Visualizer {
     const eqSteps = [];
     const minEq = Math.floor((RTA_BOTTOM_DBFS - eqZeroDbFS) / stepSize) * stepSize;
     const maxEq = Math.ceil((RTA_TOP_DBFS - eqZeroDbFS) / stepSize) * stepSize;
-    
+
     for (let eqGain = maxEq; eqGain >= minEq; eqGain -= stepSize) {
       eqSteps.push(eqGain);
     }
-    
+
     ctx.textAlign = 'left';
 
     eqSteps.forEach(eqGain => {
@@ -498,7 +497,7 @@ export class Visualizer {
 
       const norm = (rtaDb - RTA_BOTTOM_DBFS) / RTA_RANGE;
       const y = this.height - norm * this.height;
-      
+
       // Dibujar línea horizontal maestra
       ctx.beginPath();
       ctx.moveTo(0, y);
@@ -554,7 +553,7 @@ export class Visualizer {
     if (this.audioEngine.analyser.frequencyBinCount !== this.fftBuffer.length) {
       this.fftBuffer = new Float32Array(this.audioEngine.analyser.frequencyBinCount).fill(-140.0);
     }
-    
+
     if (this.audioEngine.isPlaying) {
       this.audioEngine.analyser.getFloatFrequencyData(this.fftBuffer);
     }
@@ -570,12 +569,12 @@ export class Visualizer {
     const isSynthetic = this.audioEngine ? !!this.audioEngine.isSyntheticMode : false;
     const currentAudioSource = this.audioEngine ? (this.audioEngine.currentTrackId || this.audioEngine.currentBufferName || '') : '';
     const isWhiteNoise = currentAudioSource.toLowerCase().includes('white');
-      
+
     // RTA Slope / Tilt (Compensación Psicoacústica)
     // La música comercial sigue un perfil de Pink Noise (caída natural de graves a agudos).
     // Si no aplicamos tilt, los agudos (hi-hat) se ven enanos aunque suenen fuertes.
     // Analizadores top (FabFilter Pro-Q, SPAN) usan +4.5 dB/oct para música.
-    let tiltDbPerOctave = 4.5; 
+    let tiltDbPerOctave = 4.5;
     if (isWhiteNoise) tiltDbPerOctave = 0.0; // White noise es plano de origen
     else if (isSynthetic) tiltDbPerOctave = 3.0; // Pink noise requiere +3.0 dB/oct para verse plano
 
@@ -584,14 +583,14 @@ export class Visualizer {
 
     const width = this.width;
     const height = this.canvas.height;
-    
+
     // Fast check for silence to prevent diagonal tilt glitch
     let maxEnergy = -Infinity;
     for (let i = 0; i < frequencyData.length; i++) {
-        if (frequencyData[i] > maxEnergy) maxEnergy = frequencyData[i];
+      if (frequencyData[i] > maxEnergy) maxEnergy = frequencyData[i];
     }
     if (maxEnergy <= -135.0) {
-        return; // It's pure silence (or paused), do not render chaotic tilted noise.
+      return; // It's pure silence (or paused), do not render chaotic tilted noise.
     }
 
     // 1. Calcular el valor pivote (Ancla 0dB)
@@ -599,14 +598,14 @@ export class Visualizer {
       // Para ruidos de laboratorio: forzar que cruce EXACTAMENTE por 0dB en 1kHz
       let index1kHz = Math.floor((1000 / nyquist) * frequencyData.length);
       let currentVal1kHz = isFinite(frequencyData[index1kHz]) ? frequencyData[index1kHz] : -60.0;
-      
+
       if (this.pivot1kHz === undefined || isNaN(this.pivot1kHz)) this.pivot1kHz = -60.0;
       this.pivot1kHz = (this.pivot1kHz * 0.98) + (currentVal1kHz * 0.02);
     } else {
       // Para música/stems reales: referencia absoluta fija.
       // Evita el efecto AGC masivo donde el silencio o un bombo sin 1kHz dispare la gráfica al techo.
       // -65 dBFS en el analizador será la línea central de 0dB de la cuadrícula, ideal para audios dinámicos.
-      this.pivot1kHz = -65.0; 
+      this.pivot1kHz = -65.0;
     }
 
     // Pre-calculate Y path to draw fill, trace and peak hold separatedly
@@ -614,17 +613,17 @@ export class Visualizer {
     const now = performance.now();
 
     const rawY = new Float32Array(width);
-    
+
     // 1. Extraer RAW FFT mapping (alineado con la rejilla visual)
-    
+
     for (let x = 0; x < width; x++) {
       // Usar la misma función de mapeo que la rejilla para alineación perfecta
       let freqCenter = this.xToFreq(x);
-      
+
       // Calculate bin indices
       let freqLeft = this.xToFreq(x - 0.5);
       let freqRight = this.xToFreq(x + 0.5);
-      
+
       let idxLeft = Math.floor((freqLeft / nyquist) * frequencyData.length);
       let idxRight = Math.ceil((freqRight / nyquist) * frequencyData.length);
       idxLeft = Math.max(0, Math.min(idxLeft, frequencyData.length - 1));
@@ -634,28 +633,28 @@ export class Visualizer {
 
       // --- 1. DENSIDAD ESPECTRAL ESTÁNDAR (Para Música y Ruido) ---
       if (idxRight <= idxLeft + 1) {
-          // Sub-graves: Ancho de banda de píxel < 1 bin. Interpolación lineal de energía
-          let exactIndex = (freqCenter / nyquist) * frequencyData.length;
-          let idx1 = Math.floor(exactIndex);
-          let idx2 = Math.min(idx1 + 1, frequencyData.length - 1);
-          let fraction = exactIndex - idx1;
-          let v1 = isFinite(frequencyData[idx1]) ? frequencyData[idx1] : -120;
-          let v2 = isFinite(frequencyData[idx2]) ? frequencyData[idx2] : -120;
-          val_dB = v1 + fraction * (v2 - v1);
+        // Sub-graves: Ancho de banda de píxel < 1 bin. Interpolación lineal de energía
+        let exactIndex = (freqCenter / nyquist) * frequencyData.length;
+        let idx1 = Math.floor(exactIndex);
+        let idx2 = Math.min(idx1 + 1, frequencyData.length - 1);
+        let fraction = exactIndex - idx1;
+        let v1 = isFinite(frequencyData[idx1]) ? frequencyData[idx1] : -120;
+        let v2 = isFinite(frequencyData[idx2]) ? frequencyData[idx2] : -120;
+        val_dB = v1 + fraction * (v2 - v1);
       } else {
-          // Graves a Agudos: Promedio de densidad espectral por píxel
-          let sum = 0;
-          let count = 0;
-          for (let i = idxLeft; i <= idxRight; i++) {
-              let v = frequencyData[i];
-              if (isFinite(v) && v > -120) {
-                  sum += Math.pow(10, v / 10);
-                  count++;
-              }
+        // Graves a Agudos: Promedio de densidad espectral por píxel
+        let sum = 0;
+        let count = 0;
+        for (let i = idxLeft; i <= idxRight; i++) {
+          let v = frequencyData[i];
+          if (isFinite(v) && v > -120) {
+            sum += Math.pow(10, v / 10);
+            count++;
           }
-          val_dB = (count > 0) ? 10 * Math.log10(sum / count) : -120;
+        }
+        val_dB = (count > 0) ? 10 * Math.log10(sum / count) : -120;
       }
-      
+
       // --- 2. OFFSET DE CALIBRACIÓN FFT BIFURCADO ---
       // El usuario solicitó separar la lógica matemática para ruidos y audios reales.
       // - Ruido Blanco Sintético: 61.3 dB exactos para promediar en la línea de -18 dBFS.
@@ -670,10 +669,10 @@ export class Visualizer {
         let octavesFrom1kHz = Math.log2(freqCenter / 1000.0);
         val_dB += octavesFrom1kHz * tiltDbPerOctave;
       }
-      
+
       let percentage = (RTA_TOP_DBFS - val_dB) / RTA_RANGE;
       let y = height * percentage;
-      
+
       rawY[x] = Math.max(0, Math.min(height, y));
     }
 
@@ -687,13 +686,13 @@ export class Visualizer {
       let alpha = isSynthetic ? 0.25 : 0.35;
       let s = rawY[0];
       for (let x = 0; x < width; x++) {
-         s = (alpha * rawY[x]) + ((1 - alpha) * s);
-         smoothY[x] = s;
+        s = (alpha * rawY[x]) + ((1 - alpha) * s);
+        smoothY[x] = s;
       }
       s = smoothY[width - 1];
       for (let x = width - 1; x >= 0; x--) {
-         s = (alpha * smoothY[x]) + ((1 - alpha) * s);
-         smoothY[x] = s;
+        s = (alpha * smoothY[x]) + ((1 - alpha) * s);
+        smoothY[x] = s;
       }
     }
 
@@ -720,7 +719,7 @@ export class Visualizer {
             this.previousY[x] = y * attackAlpha + this.previousY[x] * (1 - attackAlpha);
           } else {
             // Release Premium (Caída lineal constante en dB/sec)
-            let releaseDbPerFrame = 1.3; 
+            let releaseDbPerFrame = 1.3;
             let releasePixels = (height / RTA_RANGE) * releaseDbPerFrame;
             this.previousY[x] = Math.min(y, this.previousY[x] + releasePixels);
           }
@@ -738,8 +737,8 @@ export class Visualizer {
         } else {
           // Decay delay 1.2s
           if (now - this.peakHoldTime[x] > 1200) {
-             this.peakHoldY[x] += 1.5; // Smooth decay
-             if (this.peakHoldY[x] > height) this.peakHoldY[x] = height;
+            this.peakHoldY[x] += 1.5; // Smooth decay
+            if (this.peakHoldY[x] > height) this.peakHoldY[x] = height;
           }
         }
       }
@@ -751,28 +750,28 @@ export class Visualizer {
     // Aplicamos una media móvil (Moving Average) en el eje X, solo en bajas frecuencias.
     let spatialSmoothY = new Float32Array(width);
     // Ventana de suavizado espacial dinámica (más grande cuanto más a la izquierda)
-    let windowSize = Math.max(2, Math.floor(width * 0.0075)); 
+    let windowSize = Math.max(2, Math.floor(width * 0.0075));
     for (let x = 0; x < width; x++) {
-        let sum = 0;
-        let count = 0;
-        for (let w = -windowSize; w <= windowSize; w++) {
-            let idx = x + w;
-            if (idx >= 0 && idx < width) {
-                sum += pathY[idx];
-                count++;
-            }
+      let sum = 0;
+      let count = 0;
+      for (let w = -windowSize; w <= windowSize; w++) {
+        let idx = x + w;
+        if (idx >= 0 && idx < width) {
+          sum += pathY[idx];
+          count++;
         }
-        spatialSmoothY[x] = sum / count;
+      }
+      spatialSmoothY[x] = sum / count;
     }
 
     // Crossfade: Aplicar 100% smoothing por debajo de 100Hz, 0% por encima de 400Hz.
     for (let x = 0; x < width; x++) {
-        let freq = this.xToFreq(x);
-        let blend = 1.0;
-        if (freq > 100) {
-            blend = 1.0 - Math.min(1.0, (freq - 100) / 300); // 100Hz a 400Hz ramp
-        }
-        pathY[x] = (spatialSmoothY[x] * blend) + (pathY[x] * (1.0 - blend));
+      let freq = this.xToFreq(x);
+      let blend = 1.0;
+      if (freq > 100) {
+        blend = 1.0 - Math.min(1.0, (freq - 100) / 300); // 100Hz a 400Hz ramp
+      }
+      pathY[x] = (spatialSmoothY[x] * blend) + (pathY[x] * (1.0 - blend));
     }
 
     // 1. Draw Peak Hold Trace (Back Layer) - Only for acoustic material to avoid clutter
@@ -795,16 +794,16 @@ export class Visualizer {
     }
     ctx.lineTo(width, height);
     ctx.closePath();
-    
+
     let gradFill = ctx.createLinearGradient(0, 0, 0, height);
     if (isSynthetic) {
-        gradFill.addColorStop(0, "rgba(0, 210, 255, 0.7)");
-        gradFill.addColorStop(0.5, "rgba(0, 210, 255, 0.25)");
-        gradFill.addColorStop(1, "rgba(0, 210, 255, 0.05)");
+      gradFill.addColorStop(0, "rgba(0, 210, 255, 0.7)");
+      gradFill.addColorStop(0.5, "rgba(0, 210, 255, 0.25)");
+      gradFill.addColorStop(1, "rgba(0, 210, 255, 0.05)");
     } else {
-        gradFill.addColorStop(0, "rgba(16, 185, 129, 0.4)");
-        gradFill.addColorStop(0.5, "rgba(16, 185, 129, 0.1)");
-        gradFill.addColorStop(1, "rgba(16, 185, 129, 0.0)");
+      gradFill.addColorStop(0, "rgba(16, 185, 129, 0.4)");
+      gradFill.addColorStop(0.5, "rgba(16, 185, 129, 0.1)");
+      gradFill.addColorStop(1, "rgba(16, 185, 129, 0.0)");
     }
     ctx.fillStyle = gradFill;
     ctx.fill();
@@ -817,14 +816,14 @@ export class Visualizer {
     }
     let strokeGrad = ctx.createLinearGradient(0, 0, width, 0);
     if (isSynthetic) {
-        strokeGrad.addColorStop(0, "rgba(0, 210, 255, 1.0)");
-        strokeGrad.addColorStop(1, "rgba(100, 255, 255, 1.0)");
+      strokeGrad.addColorStop(0, "rgba(0, 210, 255, 1.0)");
+      strokeGrad.addColorStop(1, "rgba(100, 255, 255, 1.0)");
     } else {
-        strokeGrad.addColorStop(0, "rgba(16, 185, 129, 1.0)");
-        strokeGrad.addColorStop(0.5, "rgba(52, 211, 153, 1.0)");
-        strokeGrad.addColorStop(1, "rgba(6, 182, 212, 1.0)");
+      strokeGrad.addColorStop(0, "rgba(16, 185, 129, 1.0)");
+      strokeGrad.addColorStop(0.5, "rgba(52, 211, 153, 1.0)");
+      strokeGrad.addColorStop(1, "rgba(6, 182, 212, 1.0)");
     }
-    
+
     ctx.shadowBlur = 18;
     ctx.shadowColor = isSynthetic ? "rgba(0, 210, 255, 0.9)" : "rgba(16, 185, 129, 0.9)";
     ctx.strokeStyle = strokeGrad;
@@ -838,61 +837,61 @@ export class Visualizer {
    */
   drawMasterMeter() {
     if (this.masterPeakDb === undefined) {
-       this.masterPeakDb = -100;
-       this.masterCurrentDb = -100;
-       this.masterLastPeakTime = 0;
+      this.masterPeakDb = -100;
+      this.masterCurrentDb = -100;
+      this.masterLastPeakTime = 0;
     }
 
     const currentRms = this.lastRmsDb !== undefined ? this.lastRmsDb : -100;
-    
+
     // Ballistics
     if (currentRms > this.masterCurrentDb) {
-        this.masterCurrentDb += (currentRms - this.masterCurrentDb) * 0.4;
+      this.masterCurrentDb += (currentRms - this.masterCurrentDb) * 0.4;
     } else {
-        this.masterCurrentDb += (currentRms - this.masterCurrentDb) * 0.08;
+      this.masterCurrentDb += (currentRms - this.masterCurrentDb) * 0.08;
     }
-    
+
     const now = performance.now();
     if (this.masterCurrentDb > this.masterPeakDb) {
-        this.masterPeakDb = this.masterCurrentDb;
-        this.masterLastPeakTime = now;
+      this.masterPeakDb = this.masterCurrentDb;
+      this.masterLastPeakTime = now;
     } else if (now - this.masterLastPeakTime > 1000) {
-        this.masterPeakDb -= 0.6;
+      this.masterPeakDb -= 0.6;
     }
 
     const ctx = this.ctx;
     const meterWidth = 8;
     const meterX = 12;
-    
+
     const { RTA_TOP_DBFS, RTA_BOTTOM_DBFS, RTA_RANGE, eqZeroDbFS } = this.getRtaBounds();
-    
+
     // Draw background track
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
     ctx.fillRect(meterX, 0, meterWidth, this.height);
-    
+
     // Draw RMS solid bar
     const normRMS = Math.max(0, (this.masterCurrentDb - RTA_BOTTOM_DBFS) / RTA_RANGE);
     const rmsY = this.height - (normRMS * this.height);
-    
+
     const grad = ctx.createLinearGradient(0, this.height, 0, 0);
     grad.addColorStop(0, '#10b981'); // Green at -85
     grad.addColorStop(0.7, '#10b981'); // Green up to -25
     grad.addColorStop(0.85, '#f59e0b'); // Yellow up to -12
     grad.addColorStop(1, '#f43f5e'); // Red at 0
-    
+
     ctx.fillStyle = grad;
     if (this.height - rmsY > 0 && rmsY <= this.height) {
-       ctx.fillRect(meterX, rmsY, meterWidth, this.height - rmsY);
+      ctx.fillRect(meterX, rmsY, meterWidth, this.height - rmsY);
     }
-    
+
     // Draw Peak line
     const normPeak = Math.max(0, (this.masterPeakDb - RTA_BOTTOM) / RTA_RANGE);
     const peakY = this.height - (normPeak * this.height);
     if (peakY >= 0 && peakY <= this.height) {
-        ctx.fillStyle = this.masterPeakDb > -1.0 ? '#f43f5e' : '#ffffff';
-        ctx.fillRect(meterX - 2, Math.floor(peakY) - 1, meterWidth + 4, 2);
+      ctx.fillStyle = this.masterPeakDb > -1.0 ? '#f43f5e' : '#ffffff';
+      ctx.fillRect(meterX - 2, Math.floor(peakY) - 1, meterWidth + 4, 2);
     }
-    
+
     // Draw Peak Hold Text
     ctx.fillStyle = 'rgba(11, 12, 16, 0.9)';
     ctx.fillRect(6, 6, 42, 16);
@@ -919,7 +918,7 @@ export class Visualizer {
     if (!this.dummyFilterNode) {
       this.dummyFilterNode = this.audioEngine.ctx.createBiquadFilter();
     }
-    
+
     // Asignación directa e inmediata sin programar rampas de automatización
     this.dummyFilterNode.type = config.type || 'peaking';
     this.dummyFilterNode.frequency.value = config.frequencyHz || 1000;
@@ -966,7 +965,7 @@ export class Visualizer {
     for (let x = 0; x < numPixels; x++) {
       const mag = Math.max(1e-5, magResponse[x]);
       const dB = 20 * Math.log10(mag);
-      
+
       // La coordenada Y final se desplaza desde eqZeroY según la ganancia del filtro y los pixels por dB
       let y = zeroDbY - (dB * pixelsPerDb);
       y = Math.max(0, Math.min(this.height, y));
@@ -1009,18 +1008,22 @@ export class Visualizer {
    * Acepta un array de filtros y extrae su cumulative phaseResponse.
    */
   drawPhaseCurve(filters, strokeColor = '#ec4899') {
-    return true;
+    // WS-F: la traza de fase acumulada está desactivada por defecto (añadía ruido
+    // visual sin valor pedagógico). Pon PHASE_OVERLAY_ENABLED = true para reactivarla;
+    // la implementación de abajo se conserva intacta.
+    const PHASE_OVERLAY_ENABLED = false;
+    if (!PHASE_OVERLAY_ENABLED) return;
     if (!filters || !Array.isArray(filters) || filters.length === 0 || !this.audioEngine.ctx) return;
 
     const ctx = this.ctx;
     const numPixels = Math.ceil(this.width);
     const freqArray = new Float32Array(numPixels);
     const cumulativePhase = new Float32Array(numPixels);
-    
+
     // Arrays temporales para cada iteración
     const magResponse = new Float32Array(numPixels);
     const phaseResponse = new Float32Array(numPixels);
-    
+
     // Array de frecuencias para el eje X
     for (let x = 0; x < this.width; x++) {
       freqArray[x] = 20 * Math.pow(1000, x / this.width);
@@ -1030,13 +1033,13 @@ export class Visualizer {
       for (let i = 0; i < filters.length; i++) {
         const filter = filters[i];
         if (filter && typeof filter.getFrequencyResponse === 'function') {
-            // Solo sumar fase si está haciendo algo (gain != 0 o no peaking)
-            if (filter.gain.value !== 0 || filter.type !== 'peaking') {
-                filter.getFrequencyResponse(freqArray, magResponse, phaseResponse);
-                for (let x = 0; x < numPixels; x++) {
-                    cumulativePhase[x] += phaseResponse[x];
-                }
+          // Solo sumar fase si está haciendo algo (gain != 0 o no peaking)
+          if (filter.gain.value !== 0 || filter.type !== 'peaking') {
+            filter.getFrequencyResponse(freqArray, magResponse, phaseResponse);
+            for (let x = 0; x < numPixels; x++) {
+              cumulativePhase[x] += phaseResponse[x];
             }
+          }
         }
       }
     } catch {
@@ -1109,8 +1112,8 @@ export class Visualizer {
     const bottomY = this.height;
 
     // SoundGym 1/3 Octave Tolerance Zone Range
-    const freqLow = this.targetFreqHz * Math.pow(2, -1/6);
-    const freqHigh = this.targetFreqHz * Math.pow(2, 1/6);
+    const freqLow = this.targetFreqHz * Math.pow(2, -1 / 6);
+    const freqHigh = this.targetFreqHz * Math.pow(2, 1 / 6);
 
     const xLow = this.freqToX(freqLow);
     const xHigh = this.freqToX(freqHigh);
@@ -1175,7 +1178,7 @@ export class Visualizer {
 
   drawDidacticComparisonOverlay() {
     const ctx = this.ctx;
-    
+
     // We expect this.didacticTargets and this.didacticUsers to be arrays of filter parameters populated by App.js
     const targets = this.didacticTargets || [];
     const users = this.showUserCurve ? (this.didacticUsers || []) : [];
@@ -1189,74 +1192,74 @@ export class Visualizer {
 
     // Draw Targets
     targets.forEach((target, idx) => {
-        const targetX = this.freqToX(target.frequencyHz);
-        
-        // Target Vertical Line
-        ctx.strokeStyle = '#10b981';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(targetX, topY);
-        ctx.lineTo(targetX, bottomY);
-        ctx.stroke();
+      const targetX = this.freqToX(target.frequencyHz);
 
-        // Target Label
-        const targetTypeLower = (target.type || 'peaking').toLowerCase();
-        const isTargetNoGain = filtersWithoutGain.includes(targetTypeLower);
-        const targetGainStr = (!isTargetNoGain && target.gainDb !== undefined)
-          ? ` (${target.gainDb > 0 ? '+' : ''}${target.gainDb.toFixed(1)}dB)`
-          : '';
-        const targetLabel = `Target: ${Math.round(target.frequencyHz)} Hz${targetGainStr}`;
+      // Target Vertical Line
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(targetX, topY);
+      ctx.lineTo(targetX, bottomY);
+      ctx.stroke();
 
-        if (targetX > this.width - 100) {
-          this.drawTextWithBackground(targetLabel, targetX - 8, baseTargetY, '#10b981', 'right');
-        } else {
-          this.drawTextWithBackground(targetLabel, targetX + 8, baseTargetY, '#10b981', 'left');
-        }
+      // Target Label
+      const targetTypeLower = (target.type || 'peaking').toLowerCase();
+      const isTargetNoGain = filtersWithoutGain.includes(targetTypeLower);
+      const targetGainStr = (!isTargetNoGain && target.gainDb !== undefined)
+        ? ` (${target.gainDb > 0 ? '+' : ''}${target.gainDb.toFixed(1)}dB)`
+        : '';
+      const targetLabel = `Target: ${Math.round(target.frequencyHz)} Hz${targetGainStr}`;
+
+      if (targetX > this.width - 100) {
+        this.drawTextWithBackground(targetLabel, targetX - 8, baseTargetY, '#10b981', 'right');
+      } else {
+        this.drawTextWithBackground(targetLabel, targetX + 8, baseTargetY, '#10b981', 'left');
+      }
     });
 
     // Draw Users
     users.forEach((user, idx) => {
-        const guessX = this.freqToX(user.frequencyHz);
+      const guessX = this.freqToX(user.frequencyHz);
 
-        // User Vertical Line
-        ctx.strokeStyle = '#c084fc';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 3]);
-        ctx.beginPath();
-        ctx.moveTo(guessX, topY);
-        ctx.lineTo(guessX, bottomY);
-        ctx.stroke();
-        ctx.setLineDash([]);
+      // User Vertical Line
+      ctx.strokeStyle = '#c084fc';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 3]);
+      ctx.beginPath();
+      ctx.moveTo(guessX, topY);
+      ctx.lineTo(guessX, bottomY);
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-        // User Label
-        const userTypeLower = (user.type || 'peaking').toLowerCase();
-        const isUserNoGain = filtersWithoutGain.includes(userTypeLower);
-        const userGainStr = (!isUserNoGain && user.gainDb !== undefined)
-          ? ` (${user.gainDb > 0 ? '+' : ''}${user.gainDb.toFixed(1)}dB)`
-          : '';
-        const userLabel = `Tu Intento: ${Math.round(user.frequencyHz)} Hz${userGainStr}`;
+      // User Label
+      const userTypeLower = (user.type || 'peaking').toLowerCase();
+      const isUserNoGain = filtersWithoutGain.includes(userTypeLower);
+      const userGainStr = (!isUserNoGain && user.gainDb !== undefined)
+        ? ` (${user.gainDb > 0 ? '+' : ''}${user.gainDb.toFixed(1)}dB)`
+        : '';
+      const userLabel = `Tu Intento: ${Math.round(user.frequencyHz)} Hz${userGainStr}`;
 
-        // Find nearest target to calculate label dodge
-        let nearestTargetX = guessX;
-        let minDx = Infinity;
-        targets.forEach(t => {
-            const dx = Math.abs(this.freqToX(t.frequencyHz) - guessX);
-            if (dx < minDx) {
-                minDx = dx;
-                nearestTargetX = this.freqToX(t.frequencyHz);
-            }
-        });
-
-        let userY = baseTargetY;
-        if (minDx < 140) {
-          userY = baseTargetY + 22 + (idx * 22); // Dodge downwards if close to target or other users
+      // Find nearest target to calculate label dodge
+      let nearestTargetX = guessX;
+      let minDx = Infinity;
+      targets.forEach(t => {
+        const dx = Math.abs(this.freqToX(t.frequencyHz) - guessX);
+        if (dx < minDx) {
+          minDx = dx;
+          nearestTargetX = this.freqToX(t.frequencyHz);
         }
+      });
 
-        if (guessX > this.width - 100) {
-          this.drawTextWithBackground(userLabel, guessX - 8, userY, '#c084fc', 'right');
-        } else {
-          this.drawTextWithBackground(userLabel, guessX + 8, userY, '#c084fc', 'left');
-        }
+      let userY = baseTargetY;
+      if (minDx < 140) {
+        userY = baseTargetY + 22 + (idx * 22); // Dodge downwards if close to target or other users
+      }
+
+      if (guessX > this.width - 100) {
+        this.drawTextWithBackground(userLabel, guessX - 8, userY, '#c084fc', 'right');
+      } else {
+        this.drawTextWithBackground(userLabel, guessX + 8, userY, '#c084fc', 'left');
+      }
     });
   }
 
@@ -1275,7 +1278,7 @@ export class Visualizer {
     ctx.stroke();
 
     const label = `${Math.round(freq)} Hz`;
-    
+
     if (x > this.width - 100) {
       this.drawTextWithBackground(label, x - 10, 15, '#f59e0b', 'right');
     } else {

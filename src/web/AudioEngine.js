@@ -5,7 +5,7 @@
  * Paul Kellet 7-stage Pink Noise procedural generation, and AudioResourceManager integration.
  */
 
-import { AudioResourceManager, AUDIO_SOURCES, MULTITRACK_SESSIONS } from './AudioResourceManager.js';
+import { AudioResourceManager, AUDIO_SOURCES, MULTITRACK_SESSIONS, AUDIO_BASE_PATH } from './AudioResourceManager.js?v=70';
 
 export class AudioEngine {
   constructor() {
@@ -43,6 +43,17 @@ export class AudioEngine {
 
     // Callbacks
     this.onStateChange = null;
+    // Fired when a session's mixer state was reset to a clean full mix
+    // (e.g. by the silence-guard). Lets the UI re-sync its M/S buttons/faders.
+    this.onStemStateReset = null;
+
+    // Target Spotlight: when a multitrack session is active, duck the non-target
+    // stems a little so the EQ'd instrument sits forward and its filter is
+    // clearly audible instead of masked by the rest of the ensemble. Applied
+    // identically to every monitor route (A/B/C) so the A/B comparison stays fair
+    // (you always compare the same ducked bed, only the target EQ changes).
+    this.spotlightEnabled = true;
+    this.spotlightDuckDb = -6.0;
 
     // Initialize synchronously for canvas frequency rendering readiness
     this.initNodes();
@@ -111,17 +122,14 @@ export class AudioEngine {
   }
 
   /**
-   * Método para establecer la referencia según la fuente activa
+   * Establece la referencia de calibración de entrada para la fuente activa.
+   * Todas las fuentes (ruido sintético y sesiones OGG reales) se referencian a
+   * ganancia unitaria; la compensación de sonoridad visual vive en el Visualizer.
+   * El parámetro `sourceId` se mantiene para futuras curvas de calibración por fuente.
    */
-  setSourceCalibration(sourceId) {
-    if (!this.inputGainNode) return;
-
-    if (sourceId === 'white_noise' || sourceId === 'pink_noise' || sourceId === 'white-noise' || sourceId === 'pink-noise' || sourceId === 'WHITE_NOISE' || sourceId === 'PINK_NOISE') {
-        this.inputGainNode.gain.setValueAtTime(1.0, this.ctx.currentTime); // Referencia base para ruidos sintéticos
-    } else {
-        // Los audios reales de sesión (OGGs) se miden a su nivel nominal absoluto
-        this.inputGainNode.gain.setValueAtTime(1.0, this.ctx.currentTime);
-    }
+  setSourceCalibration(sourceId) { // eslint-disable-line no-unused-vars
+    if (!this.inputGainNode || !this.ctx) return;
+    this.inputGainNode.gain.setValueAtTime(1.0, this.ctx.currentTime);
   }
 
   /**
@@ -198,7 +206,7 @@ export class AudioEngine {
         if (filter) {
           try {
             filter.disconnect();
-          } catch (_) {}
+          } catch (_) { }
         }
       });
     }
@@ -232,7 +240,7 @@ export class AudioEngine {
       const cfg = filterArray[i];
       const filter = this.ctx.createBiquadFilter();
       filter.type = this.mapFilterType(cfg.type || 'peaking');
-      
+
       const freq = cfg.frequencyHz !== undefined ? cfg.frequencyHz : (cfg.freqHz || 1000);
       const gain = cfg.gainDb !== undefined ? cfg.gainDb : (cfg.gain || 0);
       const q = cfg.qFactor !== undefined ? cfg.qFactor : (cfg.Q || 2.0);
@@ -314,15 +322,15 @@ export class AudioEngine {
     for (let i = 0; i < Math.min(this.userGraphNodes.length, filterArray.length); i++) {
       const node = this.userGraphNodes[i];
       const cfg = filterArray[i];
-      
+
       const freq = cfg.frequencyHz !== undefined ? cfg.frequencyHz : (cfg.freqHz || 1000);
       const gain = cfg.gainDb !== undefined ? cfg.gainDb : (cfg.gain || 0);
       const q = cfg.qFactor !== undefined ? cfg.qFactor : (cfg.Q || 2.0);
-      
+
       if (cfg.type) {
         node.type = this.mapFilterType(cfg.type);
       }
-      
+
       node.frequency.value = freq;
       node.gain.value = gain;
       node.Q.value = q;
@@ -335,22 +343,22 @@ export class AudioEngine {
   stopAllAudio() {
     // 1. Detener osciladores/nodos de ruido si existen
     if (this.currentNoiseNode) {
-        try {
-            this.currentNoiseNode.stop();
-            this.currentNoiseNode.disconnect();
-        } catch(e) {}
-        this.currentNoiseNode = null;
+      try {
+        this.currentNoiseNode.stop();
+        this.currentNoiseNode.disconnect();
+      } catch (e) { }
+      this.currentNoiseNode = null;
     }
-    
+
     // 2. Detener buffers de OGG si existen
     if (this.currentBufferSource) {
-        try {
-            this.currentBufferSource.stop();
-            this.currentBufferSource.disconnect();
-        } catch(e) {}
-        this.currentBufferSource = null;
+      try {
+        this.currentBufferSource.stop();
+        this.currentBufferSource.disconnect();
+      } catch (e) { }
+      this.currentBufferSource = null;
     }
-    
+
     // Limpieza de compatibilidad con la arquitectura anterior
     this.stopSource();
   }
@@ -382,6 +390,53 @@ export class AudioEngine {
     if (this.isPlaying) this.play();
   }
 
+  /**
+   * Shows/hides the global audio loading spinner overlay.
+   * The element (#audioLoadingSpinner) already exists in index.html; this is the
+   * only place that toggles it so users get feedback while sessions load.
+   * @param {boolean} visible
+   * @param {string} [message]
+   */
+  setLoadingSpinner(visible, message) {
+    if (typeof document === 'undefined') return;
+    const spinner = document.getElementById('audioLoadingSpinner');
+    if (!spinner) return;
+    if (message) {
+      const textEl = spinner.querySelector('.spinner-text');
+      if (textEl) textEl.textContent = message;
+    }
+    spinner.classList.toggle('hidden-overlay', !visible);
+  }
+
+  /**
+   * Loads an array of stems using a bounded concurrency pool.
+   * A modest pool (default 3) dramatically cuts session load time versus a
+   * strictly sequential loop while still respecting GitHub Pages HTTP 503
+   * rate-limiting (never hammer the CDN with dozens of parallel fetches).
+   * @param {Array<{id:string, filename:string}>} stems
+   * @param {number} [concurrency=3]
+   * @returns {Promise<Array<{id:string, error:(Error|null)}>>} results indexed by input order
+   */
+  async loadStemsWithConcurrency(stems, concurrency = 3) {
+    const results = new Array(stems.length);
+    let cursor = 0;
+    const limit = Math.max(1, Math.min(concurrency, stems.length));
+    const worker = async () => {
+      while (cursor < stems.length) {
+        const index = cursor++;
+        const stem = stems[index];
+        try {
+          await this.resourceManager.loadAudio(stem.id, `${AUDIO_BASE_PATH}/${stem.filename}`);
+          results[index] = { id: stem.id, error: null };
+        } catch (error) {
+          results[index] = { id: stem.id, error };
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: limit }, () => worker()));
+    return results;
+  }
+
   async loadAudioSource(sourceId) {
     const config = AUDIO_SOURCES.find(s => s.id === sourceId);
     let mtSession = null;
@@ -395,7 +450,7 @@ export class AudioEngine {
     this.currentTrackId = null; // Evitar el fallback fantasma a ruido rosa
     this.currentMultitrackSession = null;
     this.pauseOffset = 0;
-    
+
     // Bandera explícita y robusta para informar al Visualizador si la fuente es ruido de laboratorio
     this.isSyntheticMode = config ? !!config.isSynthetic : false;
 
@@ -406,46 +461,51 @@ export class AudioEngine {
       this.currentMultitrackSession = mtSession;
       this.currentTrackId = sourceId;
 
-      // Initialize mute/solo states if not present
-      if (!this.stemStates) this.stemStates = {};
-      mtSession.stems.forEach(stem => {
-        if (!this.stemStates[stem.id]) {
-          this.stemStates[stem.id] = { muted: false, solo: false };
-        }
-      });
+      // Always start every session from a clean, fully audible full mix.
+      // Prevents stale solo/mute from a previously used session from silencing
+      // this one (the "no sound until I solo a stem" bug).
+      this.resetStemStates(mtSession);
 
-      // Load all stems sequentially to avoid HTTP 503 on GitHub Pages (rate limiting)
+      // Load all stems with a bounded concurrency pool (modest to avoid HTTP 503 rate limiting)
+      this.setLoadingSpinner(true, 'Cargando Sesión...');
       try {
-        for (const stem of mtSession.stems) {
-          await this.resourceManager.loadAudio(stem.id, `Music Ear Training/Oggs/${stem.filename}`);
+        const loadResults = await this.loadStemsWithConcurrency(mtSession.stems, 3);
+        const failed = loadResults.filter(r => r && r.error);
+        if (failed.length > 0) {
+          console.warn(`No se pudieron cargar ${failed.length} stem(s):`, failed.map(f => f.id));
         }
         if (this.isPlaying) this.play();
         // Emit event to UI so App.js knows to show the Stem Mixer
         if (this.onMultitrackLoaded) this.onMultitrackLoaded(mtSession);
       } catch (error) {
         console.error("Fallo al cargar stems del multitrack:", error);
+      } finally {
+        this.setLoadingSpinner(false);
       }
       return;
     }
 
     if (config.isSynthetic) {
-        if (config.id === 'pink_noise') this.playPinkNoise();
-        if (config.id === 'white_noise') this.playWhiteNoise(); // DEBE ser un buffer de ruido blanco real, no rosa
+      if (config.id === 'pink_noise') this.playPinkNoise();
+      if (config.id === 'white_noise') this.playWhiteNoise(); // DEBE ser un buffer de ruido blanco real, no rosa
     } else {
-        const audioPath = `Music Ear Training/Oggs/${config.filename}`;
-        console.log("Intentando cargar:", audioPath);
-        // Descomenta la siguiente línea SOLO si sigues sin saber dónde busca el archivo:
-        // alert("El código busca el audio en: " + window.location.origin + "/" + audioPath);
-        
-        try {
-            const response = await fetch(audioPath);
-            if (!response.ok) throw new Error("HTTP 404 - Ruta incorrecta");
-            const arrayBuffer = await response.arrayBuffer();
-            const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-            this.playBuffer(audioBuffer);
-        } catch (error) {
-            console.error("Fallo de carga OGG. Verifica que la carpeta 'Oggs' está junto al index.html", error);
-        }
+      const audioPath = `${AUDIO_BASE_PATH}/${config.filename}`;
+      console.log("Intentando cargar:", audioPath);
+      // Descomenta la siguiente línea SOLO si sigues sin saber dónde busca el archivo:
+      // alert("El código busca el audio en: " + window.location.origin + "/" + audioPath);
+
+      this.setLoadingSpinner(true, 'Cargando Audio...');
+      try {
+        const response = await fetch(audioPath);
+        if (!response.ok) throw new Error("HTTP 404 - Ruta incorrecta");
+        const arrayBuffer = await response.arrayBuffer();
+        const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+        this.playBuffer(audioBuffer);
+      } catch (error) {
+        console.error("Fallo de carga OGG. Verifica que la carpeta 'Oggs' está junto al index.html", error);
+      } finally {
+        this.setLoadingSpinner(false);
+      }
     }
   }
 
@@ -464,6 +524,59 @@ export class AudioEngine {
       return buffer;
     }
     return this.loadAudioSource(trackId);
+  }
+
+  /**
+   * Resets mute/solo/volume for every stem of the given session to a clean
+   * full mix, so a freshly loaded session is always fully audible.
+   * @param {object} mtSession
+   */
+  resetStemStates(mtSession) {
+    this.stemStates = {};
+    if (!mtSession || !Array.isArray(mtSession.stems)) return;
+    mtSession.stems.forEach(stem => {
+      this.stemStates[stem.id] = { muted: false, solo: false, volume: 1.0 };
+    });
+  }
+
+  /**
+   * Computes the effective gain for every stem of the given session, scoping
+   * solo/mute evaluation to that session only. Includes a silence-guard so any
+   * combination that would zero every stem falls back to a clean full mix.
+   * @param {object} mtSession
+   * @returns {Object<string, number>}
+   */
+  resolveSessionStemGains(mtSession) {
+    const gains = {};
+    if (!mtSession || !Array.isArray(mtSession.stems)) return gains;
+    if (!this.stemStates) this.stemStates = {};
+
+    const stateOf = (id) =>
+      this.stemStates[id] || { muted: false, solo: false, volume: 1.0 };
+
+    const anySolo = mtSession.stems.some(stem => !!stateOf(stem.id).solo);
+
+    let anyAudible = false;
+    mtSession.stems.forEach(stem => {
+      const state = stateOf(stem.id);
+      const baseVol = state.volume !== undefined ? state.volume : 1.0;
+      let vol = baseVol;
+      if (state.muted) vol = 0.0;
+      if (anySolo && !state.solo) vol = 0.0;
+      gains[stem.id] = vol;
+      if (vol > 0) anyAudible = true;
+    });
+
+    // Silence-guard: never leave the session fully silenced.
+    if (!anyAudible) {
+      mtSession.stems.forEach(stem => {
+        this.stemStates[stem.id] = { muted: false, solo: false, volume: 1.0 };
+        gains[stem.id] = 1.0;
+      });
+      if (this.onStemStateReset) this.onStemStateReset(mtSession);
+    }
+
+    return gains;
   }
 
   setStemState(stemId, type) {
@@ -488,22 +601,51 @@ export class AudioEngine {
 
   updateStemVolumes() {
     if (!this.stemGainNodes) return;
-    let anySolo = false;
-    if (this.stemStates) {
-      anySolo = Object.values(this.stemStates).some(state => state.solo);
-    }
+    // Scope solo/mute evaluation to the ACTIVE session only, so a stale solo
+    // left behind by another session can never silence the current one.
+    const mtSession = this.currentMultitrackSession;
+    const sessionGains = mtSession ? this.resolveSessionStemGains(mtSession) : null;
+
     for (const stemId in this.stemGainNodes) {
-      const state = this.stemStates && this.stemStates[stemId] ? this.stemStates[stemId] : { muted: false, solo: false, volume: 1.0 };
-      const baseVol = state.volume !== undefined ? state.volume : 1.0;
-      let effectiveVol = baseVol;
-      if (state.muted) effectiveVol = 0.0;
-      if (anySolo && !state.solo) effectiveVol = 0.0;
-      
       const gainNode = this.stemGainNodes[stemId];
-      if (gainNode) {
-        gainNode.gain.setTargetAtTime(effectiveVol, this.ctx.currentTime, 0.05);
+      if (!gainNode) continue;
+
+      let effectiveVol = 1.0;
+      if (sessionGains && sessionGains[stemId] !== undefined) {
+        effectiveVol = sessionGains[stemId];
+      } else {
+        const state = this.stemStates && this.stemStates[stemId] ? this.stemStates[stemId] : { muted: false, solo: false, volume: 1.0 };
+        effectiveVol = state.volume !== undefined ? state.volume : 1.0;
+        if (state.muted) effectiveVol = 0.0;
       }
+
+      // Target Spotlight: duck non-target stems so the EQ'd instrument is
+      // clearly audible. Never resurrects a muted/soloed-out stem (0 stays 0).
+      effectiveVol *= this.spotlightFactor(stemId);
+
+      gainNode.gain.setTargetAtTime(effectiveVol, this.ctx.currentTime, 0.05);
     }
+  }
+
+  /**
+   * Enables/disables the multitrack Target Spotlight (ducks non-target stems).
+   * @param {boolean} enabled
+   */
+  setSpotlight(enabled) {
+    this.spotlightEnabled = !!enabled;
+    this.updateStemVolumes();
+  }
+
+  /**
+   * Linear gain factor applied to a stem by the Target Spotlight.
+   * @param {string} stemId
+   * @returns {number} 1.0 for the target stem (or when disabled), duck factor otherwise
+   */
+  spotlightFactor(stemId) {
+    if (!this.spotlightEnabled || !this.currentMultitrackSession) return 1.0;
+    const tgt = this.currentMultitrackSession.targetStem;
+    if (!tgt || stemId === tgt) return 1.0;
+    return Math.pow(10, this.spotlightDuckDb / 20);
   }
 
   /**
@@ -528,13 +670,13 @@ export class AudioEngine {
 
     // 1. Disconnect filter endpoints
     if (this.targetGraphNodes.length > 0) {
-      this.targetGraphNodes.forEach(f => { try { f.disconnect(); } catch (_) {} });
+      this.targetGraphNodes.forEach(f => { try { f.disconnect(); } catch (_) { } });
       for (let i = 0; i < this.targetGraphNodes.length - 1; i++) {
         this.targetGraphNodes[i].connect(this.targetGraphNodes[i + 1]);
       }
     }
     if (this.userGraphNodes.length > 0) {
-      this.userGraphNodes.forEach(f => { try { f.disconnect(); } catch (_) {} });
+      this.userGraphNodes.forEach(f => { try { f.disconnect(); } catch (_) { } });
       for (let i = 0; i < this.userGraphNodes.length - 1; i++) {
         this.userGraphNodes[i].connect(this.userGraphNodes[i + 1]);
       }
@@ -544,7 +686,7 @@ export class AudioEngine {
     this.activeSourceNodes.forEach(source => {
       // Determinar el nodo de salida base (puede ser el stemGainNode si es multitrack)
       const outNode = source.stemGainNode || source;
-      try { outNode.disconnect(); } catch (_) {}
+      try { outNode.disconnect(); } catch (_) { }
 
       // Reconnect to its VU meter analyser if multitrack
       if (source.stemId && this.stemAnalysers && this.stemAnalysers[source.stemId]) {
@@ -583,7 +725,7 @@ export class AudioEngine {
    */
   async play(offset = 0, muted = false) {
     const reqId = ++this.playRequestId;
-    
+
     if (!this.ctx) await this.init();
     if (this.ctx.state === 'suspended') {
       await this.ctx.resume();
@@ -596,15 +738,15 @@ export class AudioEngine {
     if (this.currentMultitrackSession) {
       if (!this.stemGainNodes) this.stemGainNodes = {};
       const mtSession = this.currentMultitrackSession;
-      
+
       const buffers = [];
       for (const stem of mtSession.stems) {
         let buffer = this.resourceManager.getBuffer(stem.id);
-        if (!buffer) buffer = await this.resourceManager.loadAudio(stem.id, `Music Ear Training/Oggs/${stem.filename}`);
+        if (!buffer) buffer = await this.resourceManager.loadAudio(stem.id, `${AUDIO_BASE_PATH}/${stem.filename}`);
         if (this.playRequestId !== reqId) return;
         if (buffer) buffers.push({ stem, buffer });
       }
-      
+
       if (buffers.length === 0) return;
 
       const transportScrub = document.getElementById('transportScrub');
@@ -620,16 +762,14 @@ export class AudioEngine {
       const syncTime = this.ctx.currentTime + 0.05; // 50ms lookahead
       this.playbackStartTime = syncTime - offset;
 
-      let anySolo = false;
-      if (this.stemStates) {
-        anySolo = Object.values(this.stemStates).some(state => state.solo);
-      }
+      // Resolve per-session gains (solo/mute scoped to this session + silence guard)
+      const sessionGains = this.resolveSessionStemGains(mtSession);
 
       buffers.forEach(({ stem, buffer }) => {
         const source = this.ctx.createBufferSource();
         source.buffer = buffer;
         source.loop = true;
-        
+
         const gainNode = this.ctx.createGain();
         this.stemGainNodes[stem.id] = gainNode;
         if (!this.stemAnalysers) this.stemAnalysers = {};
@@ -645,19 +785,16 @@ export class AudioEngine {
         analyser.connect(dummyGain);
         dummyGain.connect(this.ctx.destination);
 
-        
-        const state = this.stemStates ? this.stemStates[stem.id] : { muted: false, solo: false };
-        let volume = 1.0;
-        if (state && state.muted) volume = 0.0;
-        if (anySolo && state && !state.solo) volume = 0.0;
+
+        const volume = (sessionGains[stem.id] !== undefined ? sessionGains[stem.id] : 1.0) * this.spotlightFactor(stem.id);
         gainNode.gain.setValueAtTime(volume, this.ctx.currentTime);
-        
+
         source.connect(gainNode);
-        
+
         source.isTarget = (stem.id === mtSession.targetStem);
-        source.stemGainNode = gainNode; 
+        source.stemGainNode = gainNode;
         source.stemId = stem.id;
-        
+
         source.onended = () => {
           if (!this.isLooping && source.isTarget) {
             this.isPlaying = false;
@@ -668,7 +805,7 @@ export class AudioEngine {
         this.activeSourceNodes.push(source);
         source.start(syncTime, offset);
       });
-      
+
       this.switchMonitor(this.activeRoute);
       this.isPlaying = true;
       if (this.onStateChange) this.onStateChange({ isPlaying: true });
@@ -718,7 +855,7 @@ export class AudioEngine {
   scrubTo(offsetSeconds) {
     if (!this.isPlaying) {
       // Truco de DAW: Reproducir 50ms en silencio para que el Analizador se actualice al arrastrar en pausa
-      this.play(offsetSeconds, true); 
+      this.play(offsetSeconds, true);
       setTimeout(() => {
         this.stopSource();
         this.isPlaying = false; // Mantener estado de pausa
@@ -726,10 +863,10 @@ export class AudioEngine {
       }, 50);
       return;
     }
-    
+
     // Detiene el audio actual de forma agresiva
-    this.stopSource(); 
-    
+    this.stopSource();
+
     // Inicia un nuevo Buffer en el nuevo tiempo offset
     this.play(offsetSeconds);
   }
@@ -749,10 +886,10 @@ export class AudioEngine {
         src.onended = null;
         src.stop(0);
         if (src.stemGainNode) {
-            src.stemGainNode.disconnect();
+          src.stemGainNode.disconnect();
         }
         src.disconnect();
-      } catch (_) {}
+      } catch (_) { }
     }
 
     if (this.masterGain && this.ctx) {
