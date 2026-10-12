@@ -5,7 +5,7 @@
  * independently using continuous linear tolerance curves and dynamic feedback messaging.
  */
 
-import { ACOUSTIC_MATRIX, resolveAcousticClassKey } from './AcousticMatrix.js?v=82';
+import { ACOUSTIC_MATRIX, resolveAcousticClassKey } from './AcousticMatrix.js?v=83';
 
 export class ScoringEngine {
   /**

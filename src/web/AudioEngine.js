@@ -5,8 +5,8 @@
  * Paul Kellet 7-stage Pink Noise procedural generation, and AudioResourceManager integration.
  */
 
-import { AudioResourceManager, AUDIO_SOURCES, MULTITRACK_SESSIONS, AUDIO_BASE_PATH } from './AudioResourceManager.js?v=82';
-import { DynamicsEngine, DYNAMICS_CACHE_VERSION } from './DynamicsEngine.js?v=82';
+import { AudioResourceManager, AUDIO_SOURCES, MULTITRACK_SESSIONS, AUDIO_BASE_PATH } from './AudioResourceManager.js?v=83';
+import { DynamicsEngine, DYNAMICS_CACHE_VERSION } from './DynamicsEngine.js?v=83';
 
 export class AudioEngine {
   constructor() {

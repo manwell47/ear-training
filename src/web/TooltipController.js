@@ -17,7 +17,7 @@
  * without a DOM.
  */
 
-import { getHelpText } from './DynamicsMatrix.js?v=82';
+import { getHelpText } from './DynamicsMatrix.js?v=83';
 
 /** Default dwell time before a popover appears (ms). */
 export const HOLD_MS = 1000;

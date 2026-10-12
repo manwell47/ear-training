@@ -19,7 +19,7 @@
  * DSP parameters, never in subjective "sounds better" heuristics.
  */
 
-import { DSP_STYLE } from './dynamics-math.js?v=82';
+import { DSP_STYLE } from './dynamics-math.js?v=83';
 
 /** Canonical display order of the compressor families. */
 export const COMPRESSOR_TYPE_ORDER = ['vca', 'fet', 'opto', 'varimu', 'bus'];

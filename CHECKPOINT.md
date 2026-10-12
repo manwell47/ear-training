@@ -51,11 +51,11 @@ es **histórico**, no se cargan.
 
 | Fichero | Símbolo clave | Línea |
 |---|---|---|
-| **index.html** | `<link … styles_v2.css?v=82>` | 13 |
+| **index.html** | `<link … styles_v2.css?v=83>` | 13 |
 | | botón `#spotlightToggleBtn` (stem-mixer-header) | ~131 |
 | | `#dynamicsPanel` / `#compressorCanvas` / `#dynScopeCanvas` / `#dynamicsKnobRow` / `#dynamicsDockSection` | 141 / 157 / 171 / 255 / 371 |
 | | `#theoryPanel` / `#dynCaseVerdict` / `#dynTipsPanel` | 301 / 387 / 388 |
-| | `<script type="module" src="./src/web/App.js?v=82">` | 954 |
+| | `<script type="module" src="./src/web/App.js?v=83">` | 954 |
 | **styles_v2.css** | `@keyframes ctaTerminalPulse` + `.btn-next-trial.cta-terminal` | ~628–650 |
 | | `#spotlightToggleBtn` / `.active` | ~1486 |
 | | `@keyframes falseFriendsFadeIn` | 332 |
@@ -228,7 +228,7 @@ limpia ni la puntuación de WS-L.
 - **M6 — Pro Tips** (`DYNAMICS_MASTER_TIPS`, panel `#dynTipsPanel`): 12 consejos de mezcla (método,
   envolvente, umbral/ratio, codo, tipos, ganancia, paralelo, sidechain y errores).
 - **M7 — Integración y verificación** ([`src/web/App.js`](src/web/App.js:15)): imports y hashes
-  `?v=82`; la sección de verificación se amplía a **129 checks ALL PASS** (helpers puros del scope
+  `?v=83`; la sección de verificación se amplía a **129 checks ALL PASS** (helpers puros del scope
   + medidor PRO, geometría ADSR, casos, sidechain, `DYNAMICS_THEORY` y el checklist cualitativo de E5).
 - **M8 — Práctica Guiada sin score (E5)** ([`src/web/App.js`](src/web/App.js:1049),
   [`src/web/DynamicsLab.js`](src/web/DynamicsLab.js:344)): el sub-modo de retos puntuables pasa a
@@ -301,6 +301,15 @@ limpia ni la puntuación de WS-L.
  `data-help="typeVca|typeFet|typeOpto|typeVarimu|typeBus"` en los 5 chips, con **6 entradas nuevas** en
  `DYNAMICS_HELP` (20 → **21 claves**) que cubren **todos** los `data-help` de `index.html` (check §5.7
  del verificador). Verificación: **129 checks ALL PASS**, cache-bust unificado a **`?v=82`**.
+- **M13 — Blindaje JS de la zona de agarre (round 3) + `?v=83`** (WS-M cont.,
+  [`src/web/App.js`](src/web/App.js:791)): reintento del reporte «los potenciómetros horizontales están
+  congelados, solo responde arrastrar el punto de umbral». Se verifica primero que el **bundle
+  desplegado** (`App.js?v=82`) ya traía `bindEvt` y el **CSS de 20 px** (sin mismatch de keys, sin ids
+  duplicados, sin overlay global). Como el patrón también encaja con una **hoja de estilos cacheada**
+  (caja de 4 px), se añade `ensureGrabbable(el)` en `_bindDynamicsPanelControls()` que **fuerza por JS**
+  `height:20px`, `cursor:pointer` y `touch-action:none` en cada `input[type=range]` del panel antes de
+  bindear: el arreglo deja de depender de la versión de CSS que el cliente haya cargado. Cache-bust
+  unificado a **`?v=83`** (`DYNAMICS_CACHE_VERSION = 83`). Verificación: **129 checks ALL PASS**.
 
 ---
 
@@ -373,8 +382,8 @@ curl -s -o NUL -w "%{http_code}\n" http://localhost:8080/src/web/App.js
 Comprobar 200 en cada módulo y presencia de marcadores en el HTML/CSS.
 
 ### Regla de cache-busting
-Los `import` internos y `index.html` comparten **el mismo `?v=82`** (`App.js?v=82`,
-`styles_v2.css?v=82`). **Al publicar en Pages, sube todas las cadenas `?v=N` juntas**
+Los `import` internos y `index.html` comparten **el mismo `?v=83`** (`App.js?v=83`,
+`styles_v2.css?v=83`). **Al publicar en Pages, sube todas las cadenas `?v=N` juntas**
 (código + HTML) para evitar versiones mixtas. Busca con:
 ```cmd
 findstr /s /r /c:"?v=[0-9][0-9]*" index.html src\web\*.js
@@ -401,7 +410,7 @@ findstr /s /r /c:"?v=[0-9][0-9]*" index.html src\web\*.js
 1. ~~**Limpieza legacy**~~ ✅ hecho: `src/web/App_v4*.js` y los scratch (`tmp_verify/`,
    `replacement.txt`) ya no están en el árbol activo; los históricos viven en `legacy/`.
 2. **Regresión manual** contra [`plans/REPAIR_PLAN.md`](plans/REPAIR_PLAN.md).
-3. ~~**Publicación — alinear `?v=N`**~~ ✅ hecho: todo unificado a **`?v=82`**.
+3. ~~**Publicación — alinear `?v=N`**~~ ✅ hecho: todo unificado a **`?v=83`**.
 4. ~~**Destino de `DynamicsSpectrumRenderer.js`**~~ ✅ hecho: **retirado** (el *scope* temporal M2
    lo sustituye). El módulo vive ahora en `legacy/DynamicsSpectrumRenderer.js` y su sección de
    verificación del espectro se eliminó. Con E5 (que añade 2 checks del checklist cualitativo), los

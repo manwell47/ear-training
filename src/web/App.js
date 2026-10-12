@@ -4,20 +4,20 @@
  * Manages CSS Grid workspace layout, onboarding overlay, mode switching, draggable Canvas node handle in Pro mode, and Fila 3 integrated pedagogical results.
  */
 
-import { AudioEngine } from './AudioEngine.js?v=82';
-import { Visualizer } from './Visualizer_v2.js?v=82';
-import { GameLoopManager, GAME_STATES } from './GameLoopManager.js?v=82';
-import { AUDIO_SOURCES, MULTITRACK_SESSIONS, pickRandomTargetStem } from './AudioResourceManager.js?v=82';
-import { TrainingManager } from './TrainingManager.js?v=82';
-import { ScoringEngine, checkFilterFalseFriends, analyzeProPractices } from './ScoringEngine.js?v=82';
-import { resolveAcousticClassKey } from './AcousticMatrix.js?v=82';
-import { VUMeter } from './VUMeter.js?v=82';
-import { DynamicsLab, DYNAMICS_LAB_MODES, DYNAMICS_LAB_EVENTS, listExploreScenarios, describeSidechainCases } from './DynamicsLab.js?v=82';
-import { DYNAMICS_MASTER_TIPS } from './DynamicsMatrix.js?v=82';
-import { CompressorUI } from './CompressorUI.js?v=82';
-import { TooltipController } from './TooltipController.js?v=82';
-import { TheoryPanel } from './TheoryPanel.js?v=82';
-import { DynamicsScopeRenderer } from './DynamicsScopeRenderer.js?v=82';
+import { AudioEngine } from './AudioEngine.js?v=83';
+import { Visualizer } from './Visualizer_v2.js?v=83';
+import { GameLoopManager, GAME_STATES } from './GameLoopManager.js?v=83';
+import { AUDIO_SOURCES, MULTITRACK_SESSIONS, pickRandomTargetStem } from './AudioResourceManager.js?v=83';
+import { TrainingManager } from './TrainingManager.js?v=83';
+import { ScoringEngine, checkFilterFalseFriends, analyzeProPractices } from './ScoringEngine.js?v=83';
+import { resolveAcousticClassKey } from './AcousticMatrix.js?v=83';
+import { VUMeter } from './VUMeter.js?v=83';
+import { DynamicsLab, DYNAMICS_LAB_MODES, DYNAMICS_LAB_EVENTS, listExploreScenarios, describeSidechainCases } from './DynamicsLab.js?v=83';
+import { DYNAMICS_MASTER_TIPS } from './DynamicsMatrix.js?v=83';
+import { CompressorUI } from './CompressorUI.js?v=83';
+import { TooltipController } from './TooltipController.js?v=83';
+import { TheoryPanel } from './TheoryPanel.js?v=83';
+import { DynamicsScopeRenderer } from './DynamicsScopeRenderer.js?v=83';
 
 export class App {
   constructor() {
@@ -780,8 +780,24 @@ export class App {
       el.addEventListener(type, handler);
     };
 
+    // Belt-and-suspenders for the recurring "los potenciómetros están congelados"
+    // report. The root cause was a 4px-tall `input[type=range]` whose grab area was
+    // almost impossible to hit with a pointer, while the big canvas threshold handle
+    // still worked. The stylesheet now paints a 20px-tall input (thin track via the
+    // vendor pseudo-elements), but a browser holding a CACHED older stylesheet would
+    // still get the 4px box. Enforcing a grabbable hit area from JS here makes the
+    // fix independent of the stylesheet version, so the knobs stay draggable no
+    // matter which CSS the client actually loaded.
+    const ensureGrabbable = (el) => {
+      if (!el || el.tagName !== 'INPUT' || el.type !== 'range') return;
+      el.style.height = '20px';
+      el.style.cursor = 'pointer';
+      el.style.touchAction = 'none';
+    };
+
     this._dynControlDefs().forEach(def => {
       const input = document.getElementById(def.id);
+      ensureGrabbable(input);
       bindEvt(input, 'input', () => {
         const raw = parseFloat(input.value);
         const val = def.uiScale ? raw / def.uiScale : raw;

@@ -24,10 +24,10 @@ import {
     DSP_STYLE,
     computeTransferCurve,
     sanitizeParams
-} from './dynamics-math.js?v=82';
+} from './dynamics-math.js?v=83';
 
 /** Cache-busting version; bumped together with the rest of src/web at release. */
-export const DYNAMICS_CACHE_VERSION = 82;
+export const DYNAMICS_CACHE_VERSION = 83;
 
 /** Processor name registered by `dynamics-processor.js`. */
 const PROCESSOR_NAME = 'dynamics-processor';

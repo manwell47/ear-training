@@ -3,7 +3,7 @@
 > Documento de planificación para revisión previa a implementación.
 > Modo autor: Architect. Rama de trabajo: `js-dev` / `main`.
 > Estado de partida: módulo DYNAMIC RANGE ya construido y verificado (96 checks PASS), build cache-bust `src/web/*.js?v=73` + `index.html?v=74`.
-> **ESTADO ACTUAL (WS-M): implementado.** E1–E6 entregados (E3 espectro retirado a favor del scope temporal; E5 Práctica Guiada sin score incluida). Añadido **E7** (readout PRO con *ballistics*, Casos de Estudio *pineados* y cabecera sin Fácil/Normal/Pro), **M10** (cinta de GR de alta resolución: `SCOPE_COLUMNS`=2880, `SCOPE_COLS_PER_FRAME`=16, interpolación del |GR|), **M11** (estilo visible de los controles bloqueados en la divulgación progresiva) y **M12** (arreglo real del «todo congelado»: caja del `surgical-slider` 4→20 px para que sea agarrable, bindings idempotentes con `bindEvt()` y ayuda de los tipos de compresor en `DYNAMICS_HELP`). Resultado real y pendientes en §9. Verificación: `node tools/verify_modules.mjs` → **ALL PASS (129 checks)**; cache-bust unificado a **`?v=82`**.
+> **ESTADO ACTUAL (WS-M): implementado.** E1–E6 entregados (E3 espectro retirado a favor del scope temporal; E5 Práctica Guiada sin score incluida). Añadido **E7** (readout PRO con *ballistics*, Casos de Estudio *pineados* y cabecera sin Fácil/Normal/Pro), **M10** (cinta de GR de alta resolución: `SCOPE_COLUMNS`=2880, `SCOPE_COLS_PER_FRAME`=16, interpolación del |GR|), **M11** (estilo visible de los controles bloqueados en la divulgación progresiva), **M12** (arreglo real del «todo congelado»: caja del `surgical-slider` 4→20 px para que sea agarrable, bindings idempotentes con `bindEvt()` y ayuda de los tipos de compresor en `DYNAMICS_HELP`) y **M13** (blindaje JS de la zona de agarre: `ensureGrabbable()` fuerza por JS una caja de 20 px **independiente del CSS cacheado**, de modo que los knobs siguen siendo arrastrables aunque el navegador sirva una hoja de estilos antigua). Resultado real y pendientes en §9. Verificación: `node tools/verify_modules.mjs` → **ALL PASS (129 checks)**; cache-bust unificado a **`?v=83`**.
 
 ---
 
@@ -173,7 +173,7 @@ sequenceDiagram
 - [x] El selector de **sidechain está oculto** cuando el caso no lo admite y **ofrece** exactamente los presets didácticos (Bajo→Bombo, Guitarras→Voz, Teclados→Voz) cuando sí.
 - [x] "Práctica Guiada" **no muestra puntuación ni vidas**; ofrece feedback **cualitativo** (sin `(NN%)`) y checklist de logros (`✓`/`≈`/`✗`). — ✅ **entregado (E5)**.
 - [x] Existen ≥2 casos de uso nuevos con objetivo + pro tips + checks (10 `DYNAMICS_CASE_STUDIES`).
-- [x] `tools/verify_modules.mjs` pasa (**129 checks ALL PASS**) y el `?v` queda unificado a **`?v=82`** (`src/web/*.js` + `index.html`).
+- [x] `tools/verify_modules.mjs` pasa (**129 checks ALL PASS**) y el `?v` queda unificado a **`?v=83`** (`src/web/*.js` + `index.html`).
 - [x] El readout numérico de dB del scope usa **RMS integrado** (`SCOPE_RMS_SECONDS`) + **máximo congelado** (`maxPeakDb`, sin decaimiento) y **refresca los dígitos** solo a `SCOPE_TEXT_HZ`; muestra `ENTRADA RMS` y, debajo, `MÁX` congelado, más `GR` a 1 decimal (fin del parpadeo por-frame). — ✅ **entregado (E7)**.
 - [x] Los **Casos de Estudio** desactivan los controles no relevantes (`checks`) y **fijan la Fuente** de la cabecera; el selector **Fácil/Normal/Pro** se oculta en modo Dynamics. — ✅ **entregado (E7)**.
 - [ ] Sin regresiones al salir a EQ (`exitDynamicsLab` limpia Teoría + espectro).
@@ -196,7 +196,7 @@ sequenceDiagram
 
 ## 9. Resultado real (WS-M)
 
-Ejecutado sobre la app web viva. Verificación: `node tools/verify_modules.mjs` → **ALL PASS (129 checks)**; cache-bust unificado a **`?v=82`**.
+Ejecutado sobre la app web viva. Verificación: `node tools/verify_modules.mjs` → **ALL PASS (129 checks)**; cache-bust unificado a **`?v=83`**. (Último incremento **M13**: `ensureGrabbable()` blinda la zona de agarre por JS, independiente del CSS cacheado.)
 
 **Entregado**
 - **E1 — Pro Tips**: botón `#dynTipsBtn` y panel `#dynTipsPanel`; [`DYNAMICS_MASTER_TIPS`](src/web/DynamicsMatrix.js:513) (12 tips) renderizados por [`App._renderDynamicsTips()`](src/web/App.js:2283).

@@ -25,7 +25,7 @@ import {
     sanitizeParams,
     computeTransferCurve,
     clamp
-} from './dynamics-math.js?v=82';
+} from './dynamics-math.js?v=83';
 
 /** UI colour per compressor type (used only when the Color switch is ON). */
 export const TYPE_COLORS = {
