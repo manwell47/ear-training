@@ -36,23 +36,25 @@ import {
     DYNAMICS_CHALLENGES,
     DYNAMICS_LESSONS,
     DYNAMICS_SIDECHAIN_CASES,
+    DYNAMICS_SOURCE_FAMILY_LABELS,
+    DYNAMICS_SOURCE_RECIPES,
     DYNAMICS_THEORY,
     getScenarioById,
     listScenarios,
     resolveCompressorType
-} from './DynamicsMatrix.js?v=83';
+} from './DynamicsMatrix.js?v=84';
 
 import {
     DEFAULT_DYNAMICS_PARAMS,
     sanitizeParams
-} from './dynamics-math.js?v=83';
+} from './dynamics-math.js?v=84';
 
 import {
     AUDIO_SOURCES,
     MULTITRACK_SESSIONS
-} from './AudioResourceManager.js?v=83';
+} from './AudioResourceManager.js?v=84';
 
-import { ScoringEngine } from './ScoringEngine.js?v=83';
+import { ScoringEngine } from './ScoringEngine.js?v=84';
 
 /** The four didactic sub-modes. */
 export const DYNAMICS_LAB_MODES = Object.freeze({
@@ -339,6 +341,48 @@ export function describeSidechainCases(sessionId = null) {
             exists: !!(sess && target && key)
         };
     }).filter((p) => p.exists && (!sessionId || p.sessionId === sessionId));
+}
+
+/**
+ * Resolves the CONTEXTUAL compression recipes for a selected Fuente track.
+ *
+ * Maps the source's `acousticClass` (family) to its recipe bank. A source that
+ * is NOT in AUDIO_SOURCES is a USER-LOADED (custom) track, so it falls back to
+ * the 'mastering' bank: compressing a full song is a 2-bus / mastering intent,
+ * not an instrument intent. Unknown-but-catalogued classes fall back to
+ * 'generic'.
+ *
+ * Pure and DOM-free (safe under Node). Every returned recipe carries a
+ * sanitized `params` set so it can be pushed straight to the Lab/DSP.
+ *
+ * @param {string} sourceId
+ * @returns {{sourceId:string, sourceName:(string|null), acousticClass:(string|null),
+ *            family:string, familyLabel:string, isCustom:boolean,
+ *            recipes:Array<{id:string,label:string,context:string,params:object}>}}
+ */
+export function suggestDynamicsForSource(sourceId) {
+    const src = AUDIO_SOURCES.find((s) => s.id === sourceId) || null;
+    const acousticClass = src ? (src.acousticClass || 'generic') : null;
+
+    let family;
+    if (!src) family = 'mastering';
+    else if (DYNAMICS_SOURCE_RECIPES[acousticClass]) family = acousticClass;
+    else family = 'generic';
+
+    const recipes = (DYNAMICS_SOURCE_RECIPES[family] || []).map((recipe) => ({
+        ...recipe,
+        params: sanitizeParams(recipe.params || {}, DEFAULT_DYNAMICS_PARAMS)
+    }));
+
+    return {
+        sourceId,
+        sourceName: src ? src.displayName : null,
+        acousticClass,
+        family,
+        familyLabel: DYNAMICS_SOURCE_FAMILY_LABELS[family] || family,
+        isCustom: !src,
+        recipes
+    };
 }
 
 /**

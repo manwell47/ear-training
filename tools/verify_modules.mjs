@@ -350,8 +350,8 @@ try {
 
     // ── 5.10) E2/E4/E6 — Lab didáctico: casos, sidechain y teoría ────────────
     const labMod = await imp('DynamicsLab.js');
-    const { DYNAMICS_CASE_STUDIES, describeSidechainCases, listExploreScenarios, DynamicsLab, describePracticeAchievements } = labMod;
-    const { DYNAMICS_LESSONS, DYNAMICS_THEORY, getScenarioById } = dynMatrix;
+    const { DYNAMICS_CASE_STUDIES, describeSidechainCases, listExploreScenarios, DynamicsLab, describePracticeAchievements, suggestDynamicsForSource } = labMod;
+    const { DYNAMICS_LESSONS, DYNAMICS_THEORY, getScenarioById, DYNAMICS_SOURCE_RECIPES, DYNAMICS_SOURCE_FAMILY_LABELS } = dynMatrix;
 
     check('DYNAMICS_CASE_STUDIES: >= 10 casos guiados',
         Array.isArray(DYNAMICS_CASE_STUDIES) && DYNAMICS_CASE_STUDIES.length >= 10,
@@ -391,6 +391,39 @@ try {
         Array.isArray(listExploreScenarios()) &&
         listExploreScenarios().every((g) => g.bus && Array.isArray(g.scenarios) &&
             g.scenarios.every((s) => s && s.sourceExists)));
+
+    // ── 5.10b) Sugerencias de compresión por pista (>=3 recetas por familia) ──
+    const recipeFamilies = Object.keys(DYNAMICS_SOURCE_RECIPES || {});
+    check('DYNAMICS_SOURCE_RECIPES: >= 14 familias con >= 3 recetas cada una',
+        recipeFamilies.length >= 14 &&
+        recipeFamilies.every((f) => Array.isArray(DYNAMICS_SOURCE_RECIPES[f]) && DYNAMICS_SOURCE_RECIPES[f].length >= 3),
+        `families=${recipeFamilies.length}`);
+    check('DYNAMICS_SOURCE_RECIPES incluye la familia mastering (pista cargada)',
+        Array.isArray(DYNAMICS_SOURCE_RECIPES.mastering) && DYNAMICS_SOURCE_RECIPES.mastering.length >= 3);
+
+    let badRecipe = null;
+    recipeFamilies.forEach((f) => {
+        DYNAMICS_SOURCE_RECIPES[f].forEach((r) => {
+            if (!r.id || !r.label || !r.context || !r.params) badRecipe = `shape:${f}:${r.id}`;
+            Object.keys(r.params || {}).forEach((k) => { if (!paramKeys.has(k)) badRecipe = `key:${f}:${r.id}:${k}`; });
+        });
+    });
+    check('cada receta: id/label/context/params con claves de DEFAULT_DYNAMICS_PARAMS',
+        !badRecipe, badRecipe || `recipes=${recipeFamilies.reduce((n, f) => n + DYNAMICS_SOURCE_RECIPES[f].length, 0)}`);
+
+    check('DYNAMICS_SOURCE_FAMILY_LABELS cubre todas las familias',
+        recipeFamilies.every((f) => typeof DYNAMICS_SOURCE_FAMILY_LABELS[f] === 'string' && DYNAMICS_SOURCE_FAMILY_LABELS[f].length > 0));
+
+    const catalogued = AUDIO_SOURCES.find((s) => DYNAMICS_SOURCE_RECIPES[s.acousticClass]);
+    const catSug = catalogued ? suggestDynamicsForSource(catalogued.id) : null;
+    check('suggestDynamicsForSource(): pista catalogada -> su familia con >= 3 recetas',
+        !!catSug && catSug.family === catalogued.acousticClass && catSug.isCustom === false &&
+        catSug.recipes.length >= 3, catSug ? `family=${catSug.family} n=${catSug.recipes.length}` : 'none');
+
+    const custSug = suggestDynamicsForSource('__pista_cargada_usuario__');
+    check('suggestDynamicsForSource(): pista cargada -> familia mastering (>= 3 recetas)',
+        !!custSug && custSug.family === 'mastering' && custSug.isCustom === true && custSug.recipes.length >= 3,
+        `family=${custSug && custSug.family} n=${custSug && custSug.recipes.length}`);
 
     // ── 5.11) E5 — Práctica Guiada: checklist cualitativo (sin puntos) ────────
     check('describePracticeAchievements: exportada y pura',

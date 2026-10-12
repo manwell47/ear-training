@@ -149,7 +149,7 @@ sequenceDiagram
 | [`src/web/DynamicsSpectrumRenderer.js`](src/web/DynamicsSpectrumRenderer.js) | **NUEVO** — renderer seco vs comprimido en canvas |
 | [`src/web/TheoryPanel.js`](src/web/TheoryPanel.js) | **NUEVO** (o helpers en App) — SVG ADSR + demo interactiva |
 | [`styles_v2.css`](styles_v2.css) | Estilos del panel Teoría, ADSR, canvas de espectro, estados deshabilitado del selector sidechain |
-| `tools/verify_modules.mjs` | Extendido a los nuevos módulos/exports (**129 checks ALL PASS**: helpers puros del scope + medidor PRO, ADSR, casos, sidechain, `DYNAMICS_THEORY`, `describePracticeAchievements` de la Práctica Guiada y la **cinta GR de alta resolución**) |
+| `tools/verify_modules.mjs` | Extendido a los nuevos módulos/exports (**135 checks ALL PASS**: helpers puros del scope + medidor PRO, ADSR, casos, sidechain, `DYNAMICS_THEORY`, `describePracticeAchievements` de la Práctica Guiada, la **cinta GR de alta resolución** y las **recetas por fuente + `suggestDynamicsForSource`** de E8) |
 
 ---
 
@@ -173,9 +173,11 @@ sequenceDiagram
 - [x] El selector de **sidechain está oculto** cuando el caso no lo admite y **ofrece** exactamente los presets didácticos (Bajo→Bombo, Guitarras→Voz, Teclados→Voz) cuando sí.
 - [x] "Práctica Guiada" **no muestra puntuación ni vidas**; ofrece feedback **cualitativo** (sin `(NN%)`) y checklist de logros (`✓`/`≈`/`✗`). — ✅ **entregado (E5)**.
 - [x] Existen ≥2 casos de uso nuevos con objetivo + pro tips + checks (10 `DYNAMICS_CASE_STUDIES`).
-- [x] `tools/verify_modules.mjs` pasa (**129 checks ALL PASS**) y el `?v` queda unificado a **`?v=83`** (`src/web/*.js` + `index.html`).
+- [x] `tools/verify_modules.mjs` pasa (**135 checks ALL PASS**) y el `?v` queda unificado a **`?v=84`** (`src/web/*.js` + `index.html`).
 - [x] El readout numérico de dB del scope usa **RMS integrado** (`SCOPE_RMS_SECONDS`) + **máximo congelado** (`maxPeakDb`, sin decaimiento) y **refresca los dígitos** solo a `SCOPE_TEXT_HZ`; muestra `ENTRADA RMS` y, debajo, `MÁX` congelado, más `GR` a 1 decimal (fin del parpadeo por-frame). — ✅ **entregado (E7)**.
 - [x] Los **Casos de Estudio** desactivan los controles no relevantes (`checks`) y **fijan la Fuente** de la cabecera; el selector **Fácil/Normal/Pro** se oculta en modo Dynamics. — ✅ **entregado (E7)**.
+- [x] Al cambiar de **Fuente** (o al cargar un modo) aparecen **≥3 recetas de compresión contextualizadas por pista**; una pista de usuario (no catalogada) propone **parámetros de mastering**. — ✅ **entregado (E8)**.
+- [x] "Revelar referencia" y "Comprobar" **se minimizan al pulsarlos de nuevo** (segundo pulsado); el botón se rotula "Comprobar". — ✅ **entregado (E8)**.
 - [ ] Sin regresiones al salir a EQ (`exitDynamicsLab` limpia Teoría + espectro).
 
 ---
@@ -196,17 +198,18 @@ sequenceDiagram
 
 ## 9. Resultado real (WS-M)
 
-Ejecutado sobre la app web viva. Verificación: `node tools/verify_modules.mjs` → **ALL PASS (129 checks)**; cache-bust unificado a **`?v=83`**. (Último incremento **M13**: `ensureGrabbable()` blinda la zona de agarre por JS, independiente del CSS cacheado.)
+Ejecutado sobre la app web viva. Verificación: `node tools/verify_modules.mjs` → **ALL PASS (135 checks)**; cache-bust unificado a **`?v=84`**. (Último incremento **M14**: sugerencias de compresión por pista/fuente + botones de Caso conmutable *on/off*.)
 
 **Entregado**
 - **E1 — Pro Tips**: botón `#dynTipsBtn` y panel `#dynTipsPanel`; [`DYNAMICS_MASTER_TIPS`](src/web/DynamicsMatrix.js:513) (12 tips) renderizados por [`App._renderDynamicsTips()`](src/web/App.js:2283).
 - **E2 — Teoría + ADSR**: [`DYNAMICS_THEORY`](src/web/DynamicsMatrix.js:651) (6 bloques) + [`TheoryPanel.js`](src/web/TheoryPanel.js:109) con envolvente ADSR interactiva y geometría pura verificable (`ADSR_DEFAULTS`/`adsrVertices()`/`buildAdsrPath()`). Panel `#theoryPanel`.
-- **E3 — Espectro** *(retirado)*: [`DynamicsSpectrumRenderer.js`](src/web/DynamicsSpectrumRenderer.js) se creó y verificó (ejes/remuestreo puros), pero el pivote a la **gráfica temporal** ([`DynamicsScopeRenderer.js`](src/web/DynamicsScopeRenderer.js:171), en `#dynScopeCanvas`, complementaria a la curva; osciloscopio de barrido min/max del waveform de entrada con auto-normalización + cinta de GR) lo dejó sin uso. Se **movió a `legacy/DynamicsSpectrumRenderer.js`** y su sección de verificación del espectro se eliminó (127 → 112 checks); con E5 (2 checks), los 2 invariantes de cache-buster y los **12 checks del medidor PRO del scope** (`DynamicsScopeRenderer`) el total real es **129 checks** (incluye el nuevo check de la **cinta GR de alta resolución**).
+- **E3 — Espectro** *(retirado)*: [`DynamicsSpectrumRenderer.js`](src/web/DynamicsSpectrumRenderer.js) se creó y verificó (ejes/remuestreo puros), pero el pivote a la **gráfica temporal** ([`DynamicsScopeRenderer.js`](src/web/DynamicsScopeRenderer.js:171), en `#dynScopeCanvas`, complementaria a la curva; osciloscopio de barrido min/max del waveform de entrada con auto-normalización + cinta de GR) lo dejó sin uso. Se **movió a `legacy/DynamicsSpectrumRenderer.js`** y su sección de verificación del espectro se eliminó (127 → 112 checks); con E5 (2 checks), los 2 invariantes de cache-buster, los **12 checks del medidor PRO del scope** (`DynamicsScopeRenderer`) y los **6 checks de E8** (recetas por fuente + resolver) el total real es **135 checks** (incluye el nuevo check de la **cinta GR de alta resolución**).
 - **E4 — Sidechain**: [`DYNAMICS_SIDECHAIN_CASES`](src/web/DynamicsMatrix.js:475) (3 presets reales de `rock_band_session`) + `describeSidechainCases()`; bloque `#dynSidechainBlock`/`#dynSidechainSelect`.
 - **E6 — Casos**: [`DYNAMICS_CASE_STUDIES`](src/web/DynamicsLab.js:111) (10 casos) con `checkCase`/`revealCaseTarget` y veredicto `#dynCaseVerdict`.
 
 - **E5 — Práctica Guiada sin score**: tarjeta "Desafíos"→"Práctica Guiada"; [`App._setGameHudVisible(false)`](src/web/App.js:664) oculta score/vidas/swap durante el sub-modo; feedback **sin números** (regex que elimina el `(NN%)` de `feedbackMessage`) + checklist cualitativa `✓`/`≈`/`✗` vía [`describePracticeAchievements()`](src/web/DynamicsLab.js:352) emitida en el `RESULT` de [`submitChallenge()`](src/web/DynamicsLab.js:692) y renderizada por [`App._renderPracticeChecklist()`](src/web/App.js:1072) en `#dynCaseVerdict`. Verificado por 2 invariantes (puro + mapeo `ok`/`close`/`miss` sin dígitos).
 - **E7 — Readout PRO · Casos *pineados* · cabecera**: (a) [`DynamicsScopeRenderer._updateMeter()`](src/web/DynamicsScopeRenderer.js:470) **integra el RMS** (`SCOPE_RMS_SECONDS`) + **congela el máximo** (`maxPeakDb`, sin decaimiento) y limita el refresco de dígitos a `SCOPE_TEXT_HZ`, de modo que `_drawReadout()` muestra `ENTRADA RMS` y, debajo, `MÁX` estables (fin del parpadeo por-frame); (b) [`App._dynCaseUnlockedKeys()`](src/web/App.js:962) deriva el set editable de los `checks` del caso, `_applyDynamicsUnlockState()` desactiva lo no relevante, y `_lockDynamicsSource(true)` **fija la Fuente** (`.custom-select-wrapper.source-locked` + `#sourceSelect.disabled`) con la pista asignada nombrada en el prompt; (c) `#difficultyGroup` (Fácil/Normal/Pro) se oculta en `startDynamicsMode()` y se restaura en `exitDynamicsLab()`.
+- **E8 — Sugerencias de compresión por pista · botones de Caso conmutables**: (a) [`DYNAMICS_SOURCE_RECIPES`](src/web/DynamicsMatrix.js:523) (15 familias × 3 recetas = 45, cada una `{id, label, context, params}`) + [`DYNAMICS_SOURCE_FAMILY_LABELS`](src/web/DynamicsMatrix.js:827); [`suggestDynamicsForSource()`](src/web/DynamicsLab.js:363) resuelve la familia por `acousticClass` y cae a `mastering` para pistas cargadas/no catalogadas; (b) [`App._renderDynamicsSuggestions()`](src/web/App.js:2657) pinta `info.recipes` en `#dynSuggestPanel` (con botón "Sugerencias" `#dynSuggestBtn` conmutable) al **cambiar la Fuente** ([`_onDynamicsSourcePicked()`](src/web/App.js:2748)) y al cargar los modos Teoría/Explorar, con "Aplicar" por receta ([`_applyDynamicsSuggestion()`](src/web/App.js:2728) → `lab.applyParams`); oculto en modo Caso (fuente fijada); (c) "Revelar referencia" y "Comprobar" (antes "Comprobar receta") **se minimizan al segundo pulsado** mediante `_dynVerdictView`/`_dynLastCheckSig` + [`_hideCaseVerdictPanel()`](src/web/App.js:1463).
 
 **Pendiente**
 - **E2 — demo A/R → knobs reales**: confirmar el vínculo con Attack/Release del `DynamicsLab`.

@@ -5,7 +5,7 @@
  * filter type bonus points (+500 PTS in Hard/Pro mode), streak-based distractors, lives management, and stage progression.
  */
 
-import { ScoringEngine } from './ScoringEngine.js?v=83';
+import { ScoringEngine } from './ScoringEngine.js?v=84';
 
 export const RANGOS = ["Tiracables", "Asistente de Estudio", "Técnico de Monitores", "Ingeniero de Mezcla", "Mastering Engineer"];
 

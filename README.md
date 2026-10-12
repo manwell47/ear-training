@@ -142,7 +142,7 @@ Built entirely with **vanilla web technologies** — no frameworks, no bundlers,
 | **Audio / DSP** | Web Audio API — `BiquadFilterNode`, `AnalyserNode`, `GainNode`, plus a custom `AudioWorkletProcessor` for dynamics |
 | **Visualisation** | HTML5 `<canvas>` with optimised `requestAnimationFrame` loops (RTA, transfer curve, GR scope, ADSR) |
 | **Pedagogy** | `AcousticMatrix` (24 acoustic classes) and `DynamicsMatrix` (theories, help, scenarios, curriculum) as **single sources of truth** |
-| **Verification** | `tools/verify_modules.mjs` — autonomous ESM sandbox running **129 checks** (syntax, invariants, DSP maths, content coverage, cache-buster) |
+| **Verification** | `tools/verify_modules.mjs` — autonomous ESM sandbox running **135 checks** (syntax, invariants, DSP maths, content coverage, per-source recipe catalogue, cache-buster) |
 | **Deployment** | Static hosting on **GitHub Pages**, with a unified `?v=N` cache-busting suffix |
 
 ---
@@ -179,7 +179,7 @@ The repository ships a self-contained verifier that copies the modules into a te
 
 ```bash
 node tools/verify_modules.mjs
-# → ALL PASS (129 checks)
+# → ALL PASS (135 checks)
 ```
 
 It covers syntax, acoustic-class coverage, alias resolution, DSP transfer-function maths, upward/downward mirroring, sanitisation clamps, scoring gates, ADSR geometry, scope/meter ballistics, the GR ribbon resolution, help-key coverage and the unified cache-buster invariant.

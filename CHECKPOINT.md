@@ -51,11 +51,12 @@ es **histórico**, no se cargan.
 
 | Fichero | Símbolo clave | Línea |
 |---|---|---|
-| **index.html** | `<link … styles_v2.css?v=83>` | 13 |
+| **index.html** | `<link … styles_v2.css?v=84>` | 13 |
 | | botón `#spotlightToggleBtn` (stem-mixer-header) | ~131 |
 | | `#dynamicsPanel` / `#compressorCanvas` / `#dynScopeCanvas` / `#dynamicsKnobRow` / `#dynamicsDockSection` | 141 / 157 / 171 / 255 / 371 |
-| | `#theoryPanel` / `#dynCaseVerdict` / `#dynTipsPanel` | 301 / 387 / 388 |
-| | `<script type="module" src="./src/web/App.js?v=83">` | 954 |
+| | `#theoryPanel` / `#dynCaseVerdict` / `#dynTipsPanel` / `#dynSuggestPanel` | 301 / 387 / 388 / 389 |
+| | `#dynSuggestBtn` (dock actions) | ~381 |
+| | `<script type="module" src="./src/web/App.js?v=84">` | 954 |
 | **styles_v2.css** | `@keyframes ctaTerminalPulse` + `.btn-next-trial.cta-terminal` | ~628–650 |
 | | `#spotlightToggleBtn` / `.active` | ~1486 |
 | | `@keyframes falseFriendsFadeIn` | 332 |
@@ -103,7 +104,7 @@ es **histórico**, no se cargan.
 | | `DYNAMICS_CASE_STUDIES` / `describeSidechainCases()` / `listExploreScenarios()` | 111 / 329 / 313 |
 | **src/web/TheoryPanel.js** | `ADSR_DEFAULTS` / `adsrVertices()` / `buildAdsrPath()` / `class TheoryPanel` | 18 / 49 / 100 / 109 |
 | **src/web/DynamicsScopeRenderer.js** | `class DynamicsScopeRenderer` (osciloscopio temporal complementario; waveform min/max de entrada con **auto-normalización** + **cinta de GR de alta resolución** (`SCOPE_COLUMNS`=2880, `SCOPE_COLS_PER_FRAME`=16, interpolación del |GR| por frame); lectura **PRO** por **RMS integrado** (`SCOPE_RMS_SECONDS`) + **máximos congelados** (`maxPeakDb` de nivel y `maxGrDb` de reducción, sin decaimiento) y **dígitos refrescados** solo a `SCOPE_TEXT_HZ`; rejilla de nivel en **fracciones de pantalla fijas** vía `_updateMeter()`/`dispInDb`; helpers `ampToDb`/`dbToAmp`/`peakToDb`/`rmsAmp`/`rmsToDb`/`levelToY`/`ampToY`/`grToY`/`pushHistory`) | 220 |
-| **tools/verify_modules.mjs** | verificador autónomo (129 checks) | — |
+| **tools/verify_modules.mjs** | verificador autónomo (135 checks) | — |
 
 ---
 
@@ -193,9 +194,9 @@ dependiente de programa ni carácter por tipo).
   escenario upward).
 - **W9 — Verificación**: `tools/verify_modules.mjs` gana la sección "3) DYNAMIC RANGE"
   (tipos, escenarios, sidechain, función de transferencia, sanitizeParams, hotspots y scoring
-  funcional) → hoy **129 checks ALL PASS** tras ampliarla en WS-M (E3 −14, E5 +2, los 2 invariantes de
-  cache-buster, los **12 checks del medidor PRO del scope** y el check de la **cinta de GR de alta
-  resolución**, §6/§4).
+  funcional) → hoy **135 checks ALL PASS** tras ampliarla en WS-M (E3 −14, E5 +2, los 2 invariantes de
+  cache-buster, los **12 checks del medidor PRO del scope**, el check de la **cinta de GR de alta
+  resolución** y los **6 checks de E8** —recetas por fuente + `suggestDynamicsForSource`—, §6/§4).
 - **Diferido**: *lookahead* (a un tier posterior, por decisión de diseño). El color por tipo es
   un **switch `Color` independiente** para estudiar primero la curva limpia.
 
@@ -310,6 +311,22 @@ limpia ni la puntuación de WS-L.
   `height:20px`, `cursor:pointer` y `touch-action:none` en cada `input[type=range]` del panel antes de
   bindear: el arreglo deja de depender de la versión de CSS que el cliente haya cargado. Cache-bust
   unificado a **`?v=83`** (`DYNAMICS_CACHE_VERSION = 83`). Verificación: **129 checks ALL PASS**.
+- **M14 — Sugerencias de compresión por pista + botones de Caso en *toggle* + `?v=84`** (WS-M cont.,
+  [`src/web/DynamicsMatrix.js`](src/web/DynamicsMatrix.js:523), [`src/web/DynamicsLab.js`](src/web/DynamicsLab.js:363),
+  [`src/web/App.js`](src/web/App.js:2657)): (a) **catálogo puro** `DYNAMICS_SOURCE_RECIPES` (15 familias
+  × ≥3 recetas = **45**, con `id`/`label`/`context`/`params`) + `DYNAMICS_SOURCE_FAMILY_LABELS`; el
+  **resolver** `suggestDynamicsForSource(sourceId)` mapea la pista a su familia por `acousticClass` y,
+  si la pista es **cargada por el usuario** (no catalogada), devuelve la familia **`mastering`** (parámetros
+  propios de masterización). (b) **Panel de sugerencias** en el dock (`#dynSuggestBtn`/`#dynSuggestPanel`,
+  `_renderDynamicsSuggestions()`) que se **refresca al cambiar de Fuente** (handler `change` de
+  `sourceSelect` → `_onDynamicsSourcePicked()`) y al cargar cada sub-modo, con botón **Aplicar** por receta
+  (`_applyDynamicsSuggestion()` → `lab.applyParams`). (c) **Toggle real** de los botones de Caso: «Revelar
+  referencia» (segunda pulsación **minimiza**) y «Enviar Ajuste» → **«Comprobar»** (`aria-pressed`; segunda
+  pulsación **sin cambiar parámetros** minimiza, si cambian **re-evalúa**) vía `_dynVerdictView` +
+  `_dynLastCheckSig` + `_hideCaseVerdictPanel()`. (d) El botón de sugerencias se **oculta en el sub-modo
+  Caso** (Fuente fijada a la receta). Verificación ampliada a **135 checks ALL PASS** (6 nuevos en §5.10b:
+  ≥14 familias con ≥3 recetas, familia `mastering`, forma/claves por receta, etiquetas, y el resolver para
+  pista catalogada y pista cargada). Cache-bust unificado a **`?v=84`** (`DYNAMICS_CACHE_VERSION = 84`).
 
 ---
 
@@ -371,7 +388,7 @@ Hace, en un sandbox ESM temporal:
    alta resolución**: `SCOPE_COLUMNS`=2880 / `SCOPE_COLS_PER_FRAME`=16 y la **interpolación del |GR|**
    entre columnas (una tira recién avanzada contiene varios niveles, no un único escalón).
 
-Salida esperada: **`ALL PASS (129 checks)`** y exit code `0`.
+Salida esperada: **`ALL PASS (135 checks)`** y exit code `0`.
 
 4. **Invariante de UX (consistencia cabecera/fuente)**: el selector de fuente de la cabecera (`#sourceSelect` + `.custom-select-header` dentro de `#sourceDropdownWrapper`) **debe nombrar la fuente que el lab acaba de cargar**. Cada carga de escenario (`_onDynamicsScenario`) y cada `_loadDynamicsForMode` (Explore/Challenge/Case) llaman a `App._syncHeaderSource(sourceId, sourceName)`, que añade la opción si falta, fija `select.value`, actualiza `store.activeTrackId`, el texto del header y marca la `.custom-option` activa. Nota: fijar `select.value` por código **no** dispara el listener `change` (que recarga el EQ), por lo que la sincronización es puramente visual/estado.
 
@@ -382,8 +399,8 @@ curl -s -o NUL -w "%{http_code}\n" http://localhost:8080/src/web/App.js
 Comprobar 200 en cada módulo y presencia de marcadores en el HTML/CSS.
 
 ### Regla de cache-busting
-Los `import` internos y `index.html` comparten **el mismo `?v=83`** (`App.js?v=83`,
-`styles_v2.css?v=83`). **Al publicar en Pages, sube todas las cadenas `?v=N` juntas**
+Los `import` internos y `index.html` comparten **el mismo `?v=84`** (`App.js?v=84`,
+`styles_v2.css?v=84`). **Al publicar en Pages, sube todas las cadenas `?v=N` juntas**
 (código + HTML) para evitar versiones mixtas. Busca con:
 ```cmd
 findstr /s /r /c:"?v=[0-9][0-9]*" index.html src\web\*.js
@@ -410,12 +427,12 @@ findstr /s /r /c:"?v=[0-9][0-9]*" index.html src\web\*.js
 1. ~~**Limpieza legacy**~~ ✅ hecho: `src/web/App_v4*.js` y los scratch (`tmp_verify/`,
    `replacement.txt`) ya no están en el árbol activo; los históricos viven en `legacy/`.
 2. **Regresión manual** contra [`plans/REPAIR_PLAN.md`](plans/REPAIR_PLAN.md).
-3. ~~**Publicación — alinear `?v=N`**~~ ✅ hecho: todo unificado a **`?v=83`**.
+3. ~~**Publicación — alinear `?v=N`**~~ ✅ hecho: todo unificado a **`?v=84`**.
 4. ~~**Destino de `DynamicsSpectrumRenderer.js`**~~ ✅ hecho: **retirado** (el *scope* temporal M2
    lo sustituye). El módulo vive ahora en `legacy/DynamicsSpectrumRenderer.js` y su sección de
    verificación del espectro se eliminó. Con E5 (que añade 2 checks del checklist cualitativo), los
-   2 invariantes de cache-buster, los 12 del medidor PRO del scope y el check de la **cinta de GR de
-   alta resolución**, el total queda en **129 checks**.
+   2 invariantes de cache-buster, los 12 del medidor PRO del scope, el check de la **cinta de GR de
+   alta resolución** y los 6 de E8 (recetas por fuente), el total queda en **135 checks**.
 5. Opcional: extender `tools/verify_modules.mjs` con comprobaciones del motor de audio
    (routing A/B/C, spotlight), hoy difíciles por depender del DOM/WebAudio.
 6. Opcional: más clases acústicas / más escenarios por banco si se pide ampliar la DB.

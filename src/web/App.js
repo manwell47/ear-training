@@ -4,20 +4,20 @@
  * Manages CSS Grid workspace layout, onboarding overlay, mode switching, draggable Canvas node handle in Pro mode, and Fila 3 integrated pedagogical results.
  */
 
-import { AudioEngine } from './AudioEngine.js?v=83';
-import { Visualizer } from './Visualizer_v2.js?v=83';
-import { GameLoopManager, GAME_STATES } from './GameLoopManager.js?v=83';
-import { AUDIO_SOURCES, MULTITRACK_SESSIONS, pickRandomTargetStem } from './AudioResourceManager.js?v=83';
-import { TrainingManager } from './TrainingManager.js?v=83';
-import { ScoringEngine, checkFilterFalseFriends, analyzeProPractices } from './ScoringEngine.js?v=83';
-import { resolveAcousticClassKey } from './AcousticMatrix.js?v=83';
-import { VUMeter } from './VUMeter.js?v=83';
-import { DynamicsLab, DYNAMICS_LAB_MODES, DYNAMICS_LAB_EVENTS, listExploreScenarios, describeSidechainCases } from './DynamicsLab.js?v=83';
-import { DYNAMICS_MASTER_TIPS } from './DynamicsMatrix.js?v=83';
-import { CompressorUI } from './CompressorUI.js?v=83';
-import { TooltipController } from './TooltipController.js?v=83';
-import { TheoryPanel } from './TheoryPanel.js?v=83';
-import { DynamicsScopeRenderer } from './DynamicsScopeRenderer.js?v=83';
+import { AudioEngine } from './AudioEngine.js?v=84';
+import { Visualizer } from './Visualizer_v2.js?v=84';
+import { GameLoopManager, GAME_STATES } from './GameLoopManager.js?v=84';
+import { AUDIO_SOURCES, MULTITRACK_SESSIONS, pickRandomTargetStem } from './AudioResourceManager.js?v=84';
+import { TrainingManager } from './TrainingManager.js?v=84';
+import { ScoringEngine, checkFilterFalseFriends, analyzeProPractices } from './ScoringEngine.js?v=84';
+import { resolveAcousticClassKey } from './AcousticMatrix.js?v=84';
+import { VUMeter } from './VUMeter.js?v=84';
+import { DynamicsLab, DYNAMICS_LAB_MODES, DYNAMICS_LAB_EVENTS, listExploreScenarios, describeSidechainCases, suggestDynamicsForSource } from './DynamicsLab.js?v=84';
+import { DYNAMICS_MASTER_TIPS } from './DynamicsMatrix.js?v=84';
+import { CompressorUI } from './CompressorUI.js?v=84';
+import { TooltipController } from './TooltipController.js?v=84';
+import { TheoryPanel } from './TheoryPanel.js?v=84';
+import { DynamicsScopeRenderer } from './DynamicsScopeRenderer.js?v=84';
 
 export class App {
   constructor() {
@@ -53,6 +53,14 @@ export class App {
     this._dynControlsBound = false;
     this._dynAwaitingNext = false;
     this._dynSidechainValue = '';
+    // Which view the shared dock verdict panel currently shows (toggle target):
+    // 'verdict' (Comprobar) | 'reference' (Revelar) | null (hidden).
+    this._dynVerdictView = null;
+    // Params signature captured at the last "Comprobar" so a second press with
+    // unchanged params MINIMISES the panel instead of pointlessly re-scoring.
+    this._dynLastCheckSig = null;
+    // Source id the suggestions panel was last rendered for (per-track recipes).
+    this._dynLastSourceId = null;
     // Didactic surface (theory cards) + the complementary temporal graph
     // (input envelope + gain reduction), created by _applyDynamicsSurface /
     // _mountDynamicsScope. It does NOT replace the transfer curve.
@@ -495,6 +503,14 @@ export class App {
     this._dynControlsBound = false;
     this._dynAwaitingNext = false;
     this._dynSidechainValue = '';
+    this._dynVerdictView = null;
+    this._dynLastCheckSig = null;
+    this._dynLastSourceId = null;
+    // Suggestions are (re)filled per source by _loadDynamicsForMode(); start closed.
+    const suggestPanel = document.getElementById('dynSuggestPanel');
+    if (suggestPanel) { suggestPanel.classList.add('hidden'); suggestPanel.setAttribute('aria-hidden', 'true'); }
+    const suggestBtn = document.getElementById('dynSuggestBtn');
+    if (suggestBtn) { suggestBtn.setAttribute('aria-pressed', 'false'); suggestBtn.classList.remove('active'); }
 
     // 1. Single 60 FPS loop: the EQ visualiser must yield to the compressor canvas.
     if (this.visualizer && typeof this.visualizer.stop === 'function') this.visualizer.stop();
@@ -719,6 +735,12 @@ export class App {
       }
       this._syncDynamicsControls();
       this._populateDynamicsSidechain(payload.scenario);
+      // Challenges use real material too: refresh the per-track suggestions.
+      const chSuggestBtn = document.getElementById('dynSuggestBtn');
+      if (chSuggestBtn) chSuggestBtn.classList.remove('hidden');
+      if (payload.scenario && payload.scenario.sourceId) {
+        this._renderDynamicsSuggestions(payload.scenario.sourceId);
+      }
     });
 
     lab.on(DYNAMICS_LAB_EVENTS.RESULT, (payload) => this._onDynamicsResult(payload));
@@ -735,22 +757,35 @@ export class App {
       this._setDynamicsPrompt(
         `Caso: ${cs.title || ''} — ${cs.goal || ''}`
         + (srcName ? ` Pista asignada: ${srcName} (fija para este ejercicio).` : '')
-        + ' Ajusta solo los controles activos y pulsa "Comprobar receta".'
+        + ' Ajusta solo los controles activos y pulsa "Comprobar".'
         + hint
       );
       this._syncHeaderSource(scen.sourceId, scen.sourceName);
       this._lockDynamicsSource(true);
       const submit = document.getElementById('dynSubmitBtn');
       if (submit) {
-        submit.textContent = '✅ Comprobar receta';
+        submit.textContent = '✅ Comprobar';
         submit.disabled = false;
         submit.classList.remove('btn-submit-disabled');
+        submit.setAttribute('aria-pressed', 'false');
       }
       this._syncDynamicsControls();
       this._populateDynamicsSidechain(payload.scenario);
       this._clearCaseVerdict();
       const reveal = document.getElementById('dynRevealBtn');
       if (reveal) reveal.classList.remove('hidden');
+      // Case mode pins the source to the recipe: per-track suggestions do not apply.
+      const caseSuggestBtn = document.getElementById('dynSuggestBtn');
+      if (caseSuggestBtn) {
+        caseSuggestBtn.classList.add('hidden');
+        caseSuggestBtn.setAttribute('aria-pressed', 'false');
+        caseSuggestBtn.classList.remove('active');
+      }
+      const caseSuggestPanel = document.getElementById('dynSuggestPanel');
+      if (caseSuggestPanel) {
+        caseSuggestPanel.classList.add('hidden');
+        caseSuggestPanel.setAttribute('aria-hidden', 'true');
+      }
     });
 
     lab.on(DYNAMICS_LAB_EVENTS.CASE_CHECKED, (result) => this._onCaseChecked(result));
@@ -863,6 +898,22 @@ export class App {
       });
     }
 
+    // Contextual per-source recipes: a toggle panel auto-refreshed when the
+    // Fuente picker changes, so the user always gets >=3 compression ideas for
+    // the track they are actually auditioning.
+    const suggestBtn = document.getElementById('dynSuggestBtn');
+    const suggestPanel = document.getElementById('dynSuggestPanel');
+    if (suggestBtn && suggestPanel) {
+      bindEvt(suggestBtn, 'click', () => {
+        const willOpen = suggestPanel.classList.contains('hidden');
+        if (willOpen) this._renderDynamicsSuggestions(this._dynCurrentSourceId());
+        suggestPanel.classList.toggle('hidden', !willOpen);
+        suggestPanel.setAttribute('aria-hidden', String(!willOpen));
+        suggestBtn.setAttribute('aria-pressed', String(willOpen));
+        suggestBtn.classList.toggle('active', willOpen);
+      });
+    }
+
     const sidechain = document.getElementById('dynSidechainSelect');
     bindEvt(sidechain, 'change', () => {
       const val = sidechain.value;
@@ -896,8 +947,18 @@ export class App {
 
     const revealBtn = document.getElementById('dynRevealBtn');
     bindEvt(revealBtn, 'click', () => {
+      const host = document.getElementById('dynCaseVerdict');
+      // Toggle: a second press on "Revelar referencia" MINIMISES the panel.
+      if (this._dynVerdictView === 'reference' && host && !host.classList.contains('hidden')) {
+        this._hideCaseVerdictPanel();
+        revealBtn.setAttribute('aria-pressed', 'false');
+        return;
+      }
       const target = lab.revealCaseTarget();
-      if (target) this._renderCaseReference(target);
+      if (target) {
+        this._renderCaseReference(target);
+        revealBtn.setAttribute('aria-pressed', 'true');
+      }
     });
 
     const submit = document.getElementById('dynSubmitBtn');
@@ -911,9 +972,24 @@ export class App {
         return;
       }
       if (lab.mode === DYNAMICS_LAB_MODES.CASE) {
+        const host = document.getElementById('dynCaseVerdict');
+        const params = lab.getParams();
+        const sig = JSON.stringify(params);
+        const showingVerdict = this._dynVerdictView === 'verdict'
+          && host && !host.classList.contains('hidden');
+        // Toggle: a second press with UNCHANGED params minimises the verdict
+        // instead of pointlessly re-scoring. Any knob move resets the signature,
+        // so the next press re-checks with the new values.
+        if (showingVerdict && sig === this._dynLastCheckSig) {
+          this._hideCaseVerdictPanel();
+          submit.setAttribute('aria-pressed', 'false');
+          return;
+        }
+        this._dynLastCheckSig = sig;
+        submit.setAttribute('aria-pressed', 'true');
         // Snapshot the live parameter state explicitly so the verdict always
         // matches the sound the user just heard.
-        this._onCaseChecked(lab.checkCase(lab.activeCaseId, lab.getParams()));
+        this._onCaseChecked(lab.checkCase(lab.activeCaseId, params));
       } else if (lab.mode === DYNAMICS_LAB_MODES.CHALLENGE) {
         lab.submitChallenge();
       }
@@ -1280,7 +1356,10 @@ export class App {
     const host = document.getElementById('dynCaseVerdict');
     if (!host) return;
     host.innerHTML = '';
-    if (!notes || !notes.length) { host.classList.add('hidden'); return; }
+    if (!notes || !notes.length) { host.classList.add('hidden'); this._dynVerdictView = null; return; }
+    // Remember which view the panel shows so the "Comprobar" button can toggle
+    // itself off (minimise) when pressed a second time without changing values.
+    this._dynVerdictView = 'verdict';
 
     const title = document.createElement('div');
     title.className = 'dyn-verdict-title';
@@ -1328,6 +1407,8 @@ export class App {
     const host = document.getElementById('dynCaseVerdict');
     if (!host || !target) return;
     host.innerHTML = '';
+    // The panel now shows the reference recipe (not the live verdict).
+    this._dynVerdictView = 'reference';
     const title = document.createElement('div');
     title.className = 'dyn-verdict-title';
     title.textContent = 'Receta de referencia';
@@ -1364,7 +1445,25 @@ export class App {
     const host = document.getElementById('dynCaseVerdict');
     if (host) { host.innerHTML = ''; host.classList.add('hidden'); }
     const reveal = document.getElementById('dynRevealBtn');
-    if (reveal) reveal.classList.add('hidden');
+    if (reveal) {
+      reveal.classList.add('hidden');
+      reveal.setAttribute('aria-pressed', 'false');
+    }
+    const submit = document.getElementById('dynSubmitBtn');
+    if (submit) submit.setAttribute('aria-pressed', 'false');
+    this._dynVerdictView = null;
+    this._dynLastCheckSig = null;
+  }
+
+  /**
+   * Minimises (toggles off) the case verdict/reference panel only, without
+   * tearing down the Case Study itself: the "Revelar referencia" and "Comprobar"
+   * buttons stay available so the learner can re-open either view at will.
+   */
+  _hideCaseVerdictPanel() {
+    const host = document.getElementById('dynCaseVerdict');
+    if (host) { host.innerHTML = ''; host.classList.add('hidden'); }
+    this._dynVerdictView = null;
   }
 
   /** Sets the dock prompt text (shared by every sub-mode). */
@@ -1429,6 +1528,11 @@ export class App {
     const lab = this.dynamicsLab;
     if (!lab) return;
 
+    // The per-track suggestions are meaningful for the sandbox/training modes;
+    // in Case mode the Fuente is pinned to the recipe, so the button is hidden.
+    const suggestBtnEl = document.getElementById('dynSuggestBtn');
+    if (suggestBtnEl) suggestBtnEl.classList.toggle('hidden', mode === DYNAMICS_LAB_MODES.CASE);
+
     // Descriptor of the scenario we actually load, so the header source picker
     // can be kept truthful (its label must name the source we play).
     let descriptor = null;
@@ -1471,12 +1575,15 @@ export class App {
       this._setDynamicsPrompt(
         'Teoría de la dinámica: repasa cada concepto y arrastra los deslizadores de Attack/Release de la demo para escuchar su efecto sobre la fuente cargada.'
       );
+      if (descriptor) this._renderDynamicsSuggestions(descriptor.sourceId);
     } else if (mode === DYNAMICS_LAB_MODES.EXPLORE && descriptor) {
       const srcName = descriptor.sourceName || descriptor.sourceId || '';
       const hasKey = !!(descriptor.sidechain && descriptor.sidechain.exists);
       this._setDynamicsPrompt(
         `Fuente: ${srcName}${hasKey ? ' · sidechain disponible' : ''} — mueve los controles y observa la curva, la forma de onda y la línea de ganancia (fader ultrarrápido) en vivo.`
       );
+      // Surface the per-track compression recipes for the loaded source.
+      this._renderDynamicsSuggestions(descriptor.sourceId);
     }
 
     this._syncDynamicsControls();
@@ -1990,6 +2097,13 @@ export class App {
           if (this.gameLoop && this.gameLoop.store) {
             this.gameLoop.store.activeTrackId = e.target.value;
             this.updateTrainerAcousticClass(e.target.value);
+          }
+          // While the Dynamic Range lab is open, keep the contextual compression
+          // suggestions in step with the newly picked source (skipped in Case
+          // mode, where the audible source is pinned to the recipe on screen).
+          if (this.dynamicsActive && this.dynamicsLab
+            && this.dynamicsLab.mode !== DYNAMICS_LAB_MODES.CASE) {
+            this._onDynamicsSourcePicked(e.target.value);
           }
           this.audio.loadTrack(e.target.value).then(() => {
             this.checkAndRenderMixer(e.target.value);
@@ -2522,6 +2636,126 @@ export class App {
     });
     panel.appendChild(grid);
     panel.dataset.rendered = '1';
+  }
+
+  /** Returns the sourceId currently selected in the header Fuente picker. */
+  _dynCurrentSourceId() {
+    const select = document.getElementById('sourceSelect');
+    if (select && select.value) return select.value;
+    if (this.gameLoop && this.gameLoop.store && this.gameLoop.store.activeTrackId) {
+      return this.gameLoop.store.activeTrackId;
+    }
+    return null;
+  }
+
+  /**
+   * Renders the contextual compression suggestions into #dynSuggestPanel for the
+   * selected Fuente: at least three recipes per instrument family, or the
+   * mastering-oriented recipes when the track is a user-loaded (custom) file.
+   * @param {string} [sourceId]
+   */
+  _renderDynamicsSuggestions(sourceId) {
+    const panel = document.getElementById('dynSuggestPanel');
+    if (!panel) return;
+    const id = sourceId || this._dynCurrentSourceId();
+    this._dynLastSourceId = id;
+
+    const info = suggestDynamicsForSource(id);
+    panel.innerHTML = '';
+
+    const header = document.createElement('div');
+    header.className = 'dyn-suggest-header';
+    const title = document.createElement('span');
+    title.className = 'dyn-suggest-title';
+    title.textContent = `🎚 Sugerencias de compresión — ${info.sourceName || info.familyLabel}`;
+    const sub = document.createElement('span');
+    sub.className = 'dyn-suggest-sub';
+    sub.textContent = info.isCustom
+      ? 'Pista cargada · parámetros propios de mastering'
+      : `${info.familyLabel} · ${info.recipes.length} recetas`;
+    header.appendChild(title);
+    header.appendChild(sub);
+    panel.appendChild(header);
+
+    const grid = document.createElement('div');
+    grid.className = 'dyn-suggest-grid';
+    const ORDER = ['style', 'thresholdDb', 'ratio', 'kneeDb', 'attackMs', 'releaseMs', 'makeupDb', 'mix', 'detector'];
+    info.recipes.forEach((recipe) => {
+      const card = document.createElement('article');
+      card.className = 'dyn-suggest-card';
+
+      const label = document.createElement('h4');
+      label.className = 'dyn-suggest-card-title';
+      label.textContent = recipe.label || recipe.id;
+
+      const ctx = document.createElement('p');
+      ctx.className = 'dyn-suggest-context';
+      ctx.textContent = recipe.context || '';
+
+      const values = document.createElement('ul');
+      values.className = 'dyn-suggest-values';
+      ORDER.forEach((k) => {
+        if (!(k in recipe.params)) return;
+        const meta = this._dynParamMeta(k);
+        const li = document.createElement('li');
+        const keyEl = document.createElement('span');
+        keyEl.className = 'dyn-suggest-k';
+        keyEl.textContent = meta.label;
+        const valEl = document.createElement('span');
+        valEl.className = 'dyn-suggest-v';
+        valEl.textContent = meta.fmt(recipe.params[k]);
+        li.appendChild(keyEl);
+        li.appendChild(valEl);
+        values.appendChild(li);
+      });
+
+      const apply = document.createElement('button');
+      apply.type = 'button';
+      apply.className = 'btn btn-secondary dyn-suggest-apply';
+      apply.textContent = 'Aplicar';
+      apply.addEventListener('click', () => this._applyDynamicsSuggestion(recipe.params));
+
+      card.appendChild(label);
+      card.appendChild(ctx);
+      card.appendChild(values);
+      card.appendChild(apply);
+      grid.appendChild(card);
+    });
+    panel.appendChild(grid);
+  }
+
+  /** Applies a suggested recipe to the live lab (Explorar / Teoría only). */
+  _applyDynamicsSuggestion(params) {
+    const lab = this.dynamicsLab;
+    if (!lab || !params) return;
+    if (lab.mode !== DYNAMICS_LAB_MODES.EXPLORE && lab.mode !== DYNAMICS_LAB_MODES.THEORY) {
+      this._setDynamicsPrompt('Abre el modo Explorar para aplicar y escuchar las recetas sugeridas.');
+      return;
+    }
+    try { lab.applyParams(params); } catch (_) { /* ignore */ }
+    this._syncDynamicsControls();
+    const styleName = params.style ? String(params.style).toUpperCase() : '';
+    this._setDynamicsPrompt(
+      `Receta aplicada${styleName ? ` (${styleName})` : ''}. Afina los controles y escucha el resultado en la curva y la onda.`
+    );
+  }
+
+  /**
+   * Reacts to a Fuente change while the Dynamic Range lab is open: refreshes the
+   * suggestions panel and (in the Explorar sandbox) announces the new material.
+   * @param {string} sourceId
+   */
+  _onDynamicsSourcePicked(sourceId) {
+    if (!sourceId) return;
+    this._renderDynamicsSuggestions(sourceId);
+    const lab = this.dynamicsLab;
+    if (!lab) return;
+    if (lab.mode === DYNAMICS_LAB_MODES.EXPLORE) {
+      const info = suggestDynamicsForSource(sourceId);
+      this._setDynamicsPrompt(
+        `Fuente: ${info.sourceName || sourceId} — ${info.familyLabel} · ${info.recipes.length} recetas sugeridas. Mueve los controles y observa la curva en vivo.`
+      );
+    }
   }
 
   renderHUD(store = this.gameLoop ? this.gameLoop.store : null) {

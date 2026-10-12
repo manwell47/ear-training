@@ -10,7 +10,7 @@
   <title>Ear Training App - CSS Grid Studio VST Spectrum</title>
   <meta name="description"
     content="Plataforma profesional de entrenamiento auditivo y ecualización quirúrgica en el navegador usando Web Audio API. Sin instalación.">
-  <link rel="stylesheet" href="styles_v2.css?v=83">
+  <link rel="stylesheet" href="styles_v2.css?v=84">
 </head>
 
 <body>
@@ -378,6 +378,9 @@
             title="Comparar A/B: escuchar sin compresión (bypass) y con compresión">A/B Bypass</button>
           <button id="dynTipsBtn" class="btn btn-secondary" type="button" aria-pressed="false"
             title="Pro Tips: buenas prácticas y usos típicos de la compresión">💡 Pro Tips</button>
+          <button id="dynSuggestBtn" class="btn btn-secondary" type="button" aria-pressed="false"
+            title="Sugerencias de compresión con contexto para la pista seleccionada (al menos 3 recetas)">🎚
+            Sugerencias</button>
           <button id="dynRevealBtn" class="btn btn-secondary hidden" type="button"
             title="Mostrar la receta de referencia del caso (para autocorregirte)">👁 Revelar referencia</button>
           <button id="dynSubmitBtn" class="btn btn-accent btn-submit-disabled" type="button" disabled>
@@ -386,6 +389,7 @@
         </div>
         <div id="dynCaseVerdict" class="dyn-case-verdict hidden" aria-live="polite"></div>
         <div id="dynTipsPanel" class="dyn-tips-panel hidden" aria-hidden="true"></div>
+        <div id="dynSuggestPanel" class="dyn-suggest-panel hidden" aria-hidden="true" aria-live="polite"></div>
       </div>
 
       <!-- Componente de Resultados Integrado en Fila 3 (Reemplaza a las Opciones al terminar el ensayo) -->
@@ -951,7 +955,7 @@
       originalConsoleError.apply(console, args);
     };
   </script>
-  <script type="module" src="./src/web/App.js?v=83"></script>
+  <script type="module" src="./src/web/App.js?v=84"></script>
 </body>
 
 </html>

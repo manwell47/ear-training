@@ -19,7 +19,7 @@
  * DSP parameters, never in subjective "sounds better" heuristics.
  */
 
-import { DSP_STYLE } from './dynamics-math.js?v=83';
+import { DSP_STYLE } from './dynamics-math.js?v=84';
 
 /** Canonical display order of the compressor families. */
 export const COMPRESSOR_TYPE_ORDER = ['vca', 'fet', 'opto', 'varimu', 'bus'];
@@ -500,6 +500,346 @@ export const DYNAMICS_SCENARIOS = {
             }
         }
     ]
+};
+
+/**
+ * Per-source compression recipes — CONTEXTUAL suggestions shown when the Fuente
+ * (header source picker) changes in the Dynamic Range lab.
+ *
+ * Keyed by the `acousticClass` of a source in AUDIO_SOURCES (i.e. a family of
+ * instruments). Every family offers >= 3 ready-to-hear recipes, so switching to
+ * any track always yields at least three contextual "takes" on that material.
+ *
+ * The pseudo-family 'mastering' is NOT an acousticClass: it is returned by
+ * suggestDynamicsForSource() for a USER-LOADED (custom) track, which has no
+ * catalogue entry — a full song calls for mastering intent.
+ *
+ * Rule §1 (no psychoacoustic shortcuts): every recipe is expressed ONLY in real
+ * DSP parameters; `context` explains WHEN/WHY to reach for it (never "sounds
+ * better"). `params` uses DEFAULT_DYNAMICS_PARAMS keys exclusively.
+ *
+ * Shape: { id, label, context, params }
+ */
+export const DYNAMICS_SOURCE_RECIPES = {
+    kick: [
+        {
+            id: 'kick_punch',
+            label: 'Pegada firme (FET)',
+            context: 'Cuando el bombo salta de nivel entre golpes y quieres un ataque seco y definido sin perder el golpe de maza.',
+            params: { style: 'fet', thresholdDb: -12, ratio: 4, kneeDb: 3, attackMs: 3, releaseMs: 80, makeupDb: 3, detector: 'peak' }
+        },
+        {
+            id: 'kick_round',
+            label: 'Natural y redondo (Opto)',
+            context: 'Cuando el bombo ya suena bien y solo quieres domarlo un poco respetando el transitorio (estilos acústicos/pop).',
+            params: { style: 'opto', thresholdDb: -20, ratio: 2, kneeDb: 12, attackMs: 25, releaseMs: 300, makeupDb: 2, detector: 'peak' }
+        },
+        {
+            id: 'kick_parallel',
+            label: 'Paralelo con cuerpo (mix 60%)',
+            context: 'Cuando necesitas más densidad y "peso" sin aplastar el original: controla la dinámica pero deja pasar el transitorio.',
+            params: { style: 'vca', thresholdDb: -24, ratio: 6, kneeDb: 4, attackMs: 5, releaseMs: 120, mix: 0.6, makeupDb: 4, detector: 'peak' }
+        }
+    ],
+    snare: [
+        {
+            id: 'snare_crack',
+            label: 'Crack y cuerpo (FET)',
+            context: 'Cuando la caja necesita pegar duro y sonar consistente en cada golpe, con cuerpo por debajo del ataque.',
+            params: { style: 'fet', thresholdDb: -16, ratio: 4, kneeDb: 3, attackMs: 2, releaseMs: 90, makeupDb: 4, detector: 'peak' }
+        },
+        {
+            id: 'snare_room',
+            label: 'Caja con sala (mix 80%)',
+            context: 'Cuando quieres que la caja respire y gane "sala" manteniendo parte del transitorio original (compresión paralela).',
+            params: { style: 'vca', thresholdDb: -22, ratio: 3, kneeDb: 6, attackMs: 10, releaseMs: 180, mix: 0.8, makeupDb: 3, detector: 'peak' }
+        },
+        {
+            id: 'snare_upward',
+            label: 'Subir los ghost notes',
+            context: 'Cuando los toques suaves (ghost notes) se pierden bajo los golpes fuertes: sube hacia arriba en vez de aplastar.',
+            params: { style: 'opto', thresholdDb: -8, ratio: 2, kneeDb: 10, attackMs: 15, releaseMs: 200, makeupDb: 0, upwardEnabled: true, upwardThresholdDb: -40, upwardRatio: 2 }
+        }
+    ],
+    cymbals: [
+        {
+            id: 'cym_control',
+            label: 'Domar picos de platos',
+            context: 'Cuando los platos/overheads saltan por encima de la mezcla y quieres sujetarlos sin que "chisporroteen".',
+            params: { style: 'vca', thresholdDb: -14, ratio: 3, kneeDb: 6, attackMs: 5, releaseMs: 120, makeupDb: 2, detector: 'peak' }
+        },
+        {
+            id: 'cym_smooth',
+            label: 'Overheads suaves (Opto)',
+            context: 'Cuando buscas un control transparente y musical del conjunto de platos, con un codo ancho que no endurezca.',
+            params: { style: 'opto', thresholdDb: -18, ratio: 2, kneeDb: 14, attackMs: 20, releaseMs: 350, makeupDb: 2, detector: 'peak' }
+        },
+        {
+            id: 'cym_parallel',
+            label: 'Paralelo brillante (mix 50%)',
+            context: 'Cuando quieres controlar la dinámica pero conservar el aire y el brillo: mezcla la señal comprimida al 50%.',
+            params: { style: 'fet', thresholdDb: -20, ratio: 4, kneeDb: 4, attackMs: 8, releaseMs: 160, mix: 0.5, makeupDb: 2, detector: 'peak' }
+        }
+    ],
+    bass: [
+        {
+            id: 'bass_solid',
+            label: 'Bajo sólido y parejo (VCA)',
+            context: 'Cuando el bajo tiene notas que se van y otras que pisan: iguala el nivel para que todas pesen igual.',
+            params: { style: 'vca', thresholdDb: -22, ratio: 4, kneeDb: 6, attackMs: 10, releaseMs: 150, makeupDb: 4, detector: 'peak' }
+        },
+        {
+            id: 'bass_finger',
+            label: 'Dedo con vida (Opto)',
+            context: 'Cuando tocas con dedos/púa y quieres controlar la dinámica conservando el ataque y la "vida" natural de cada nota.',
+            params: { style: 'opto', thresholdDb: -18, ratio: 3, kneeDb: 12, attackMs: 20, releaseMs: 250, makeupDb: 3, detector: 'peak' }
+        },
+        {
+            id: 'bass_limit',
+            label: 'Control de picos (limiter FET)',
+            context: 'Cuando el bajo es estable pero tiene picos puntuales que quieres frenar en seco (ratio alto y ataque rapidísimo).',
+            params: { style: 'fet', thresholdDb: -10, ratio: 8, kneeDb: 2, attackMs: 1, releaseMs: 100, makeupDb: 2, detector: 'peak' }
+        }
+    ],
+    epiano: [
+        {
+            id: 'keys_even',
+            label: 'Nivel constante (Opto)',
+            context: 'Cuando el teclado tiene acordes que sobresalen sobre las líneas suaves y quieres un nivel uniforme.',
+            params: { style: 'opto', thresholdDb: -20, ratio: 3, kneeDb: 12, attackMs: 15, releaseMs: 250, makeupDb: 3, detector: 'peak' }
+        },
+        {
+            id: 'keys_warm',
+            label: 'Calor Vari-Mu',
+            context: 'Cuando buscas densidad y calidez de válvulas en el teclado, con una reducción ligera y codo ancho.',
+            params: { style: 'varimu', thresholdDb: -16, ratio: 2, kneeDb: 16, attackMs: 40, releaseMs: 400, makeupDb: 2, detector: 'rms' }
+        },
+        {
+            id: 'keys_parallel',
+            label: 'Paralelo con cuerpo (mix 60%)',
+            context: 'Cuando el teclado suena fino y quieres ganar cuerpo sin emborronar los ataques (compresión paralela).',
+            params: { style: 'vca', thresholdDb: -24, ratio: 4, kneeDb: 6, attackMs: 8, releaseMs: 140, mix: 0.6, makeupDb: 3, detector: 'peak' }
+        }
+    ],
+    toms: [
+        {
+            id: 'toms_body',
+            label: 'Toms con cuerpo (FET)',
+            context: 'Cuando los toms no se sostienen y quieres ganar cuerpo y consistencia en la caída de cada golpe.',
+            params: { style: 'fet', thresholdDb: -18, ratio: 4, kneeDb: 4, attackMs: 5, releaseMs: 140, makeupDb: 4, detector: 'peak' }
+        },
+        {
+            id: 'toms_control',
+            label: 'Control de resonancias (VCA)',
+            context: 'Cuando un tom largo resuena demasiado y quieres sujetar la cola sin matar el golpe.',
+            params: { style: 'vca', thresholdDb: -16, ratio: 4, kneeDb: 3, attackMs: 3, releaseMs: 120, makeupDb: 3, detector: 'peak' }
+        },
+        {
+            id: 'toms_natural',
+            label: 'Naturales (Opto)',
+            context: 'Cuando los toms ya están bien tocados y solo quieres un control suave y musical de sus picos.',
+            params: { style: 'opto', thresholdDb: -22, ratio: 2, kneeDb: 14, attackMs: 25, releaseMs: 300, makeupDb: 2, detector: 'peak' }
+        }
+    ],
+    guitars: [
+        {
+            id: 'gtr_sustain',
+            label: 'Rítmica con sustain (FET)',
+            context: 'Cuando la guitarra rítmica se apaga entre golpes y quieres ganar sustain subiéndole el cuerpo por encima del ataque.',
+            params: { style: 'fet', thresholdDb: -18, ratio: 4, kneeDb: 6, attackMs: 5, releaseMs: 120, makeupDb: 5, detector: 'peak' }
+        },
+        {
+            id: 'gtr_clean',
+            label: 'Limpia y pareja (Opto)',
+            context: 'Cuando una guitarra limpia tiene acordes y arpegios a distinto volumen y quieres unificarlos con suavidad.',
+            params: { style: 'opto', thresholdDb: -20, ratio: 3, kneeDb: 12, attackMs: 15, releaseMs: 250, makeupDb: 3, detector: 'peak' }
+        },
+        {
+            id: 'gtr_crunch',
+            label: 'Crunch controlado (VCA)',
+            context: 'Cuando una guitarra con crunch demanda pegada constante y quieres controlar los picos sin endurecer el tono.',
+            params: { style: 'vca', thresholdDb: -16, ratio: 3, kneeDb: 8, attackMs: 10, releaseMs: 180, makeupDb: 3, detector: 'peak' }
+        }
+    ],
+    organ: [
+        {
+            id: 'organ_even',
+            label: 'Órgano estable (VCA)',
+            context: 'Cuando el órgano (especialmente con Leslie) fluctúa de nivel y quieres una imagen firme y constante.',
+            params: { style: 'vca', thresholdDb: -20, ratio: 3, kneeDb: 8, attackMs: 12, releaseMs: 200, makeupDb: 3, detector: 'peak' }
+        },
+        {
+            id: 'organ_warm',
+            label: 'Leslie cálido (Vari-Mu)',
+            context: 'Cuando el Leslie aporta movimiento y quieres densidad y calor sin que el compresor "bombeé" el giro.',
+            params: { style: 'varimu', thresholdDb: -16, ratio: 2, kneeDb: 16, attackMs: 35, releaseMs: 350, makeupDb: 2, detector: 'rms' }
+        },
+        {
+            id: 'organ_parallel',
+            label: 'Paralelo denso (mix 55%)',
+            context: 'Cuando quieres que el órgano llene sin perder la respiración del rotor (compresión paralela con mix medio).',
+            params: { style: 'fet', thresholdDb: -22, ratio: 4, kneeDb: 4, attackMs: 6, releaseMs: 150, mix: 0.55, makeupDb: 3, detector: 'peak' }
+        }
+    ],
+    room: [
+        {
+            id: 'room_glue',
+            label: 'Sala cohesionada (Bus)',
+            context: 'Cuando la pista de sala/room une la batería y quieres "pegar" el conjunto con una compresión suave y lenta.',
+            params: { style: 'bus', thresholdDb: -16, ratio: 2, kneeDb: 10, attackMs: 30, releaseMs: 300, makeupDb: 2, detector: 'rms' }
+        },
+        {
+            id: 'room_control',
+            label: 'Controlar la reverb (VCA)',
+            context: 'Cuando la cola de sala crece demasiado y quieres sujetarla para no emborronar la mezcla.',
+            params: { style: 'vca', thresholdDb: -20, ratio: 3, kneeDb: 8, attackMs: 15, releaseMs: 250, makeupDb: 2, detector: 'peak' }
+        },
+        {
+            id: 'room_upward',
+            label: 'Recuperar colas débiles',
+            context: 'Cuando quieres que las colas de sala más bajas se oigan sin subir la señal principal (compresión al alza).',
+            params: { style: 'opto', thresholdDb: -8, ratio: 2, kneeDb: 12, attackMs: 20, releaseMs: 300, makeupDb: 0, upwardEnabled: true, upwardThresholdDb: -42, upwardRatio: 1.8 }
+        }
+    ],
+    orchestra: [
+        {
+            id: 'orch_glue',
+            label: 'Glue orquestal (Bus)',
+            context: 'Cuando el conjunto clásico pide cohesión suave entre secciones sin recortar la dinámica expresiva.',
+            params: { style: 'bus', thresholdDb: -14, ratio: 2, kneeDb: 12, attackMs: 40, releaseMs: 400, makeupDb: 2, detector: 'rms' }
+        },
+        {
+            id: 'orch_dynamic',
+            label: 'Respetar ff/pp (Opto)',
+            context: 'Cuando la grabación tiene un rango amplio y quieres un control muy transparente que preserve el contraste.',
+            params: { style: 'opto', thresholdDb: -10, ratio: 2, kneeDb: 16, attackMs: 30, releaseMs: 500, makeupDb: 1, detector: 'peak' }
+        },
+        {
+            id: 'orch_upward',
+            label: 'Subir los pianissimi',
+            context: 'Cuando los pasajes suaves se pierden y prefieres subirlos en vez de recortar los tutti (compresión al alza).',
+            params: { style: 'opto', thresholdDb: -6, ratio: 2, kneeDb: 12, attackMs: 25, releaseMs: 350, makeupDb: 0, upwardEnabled: true, upwardThresholdDb: -40, upwardRatio: 2 }
+        }
+    ],
+    strings: [
+        {
+            id: 'str_sustain',
+            label: 'Cuerdas sostenidas (Opto)',
+            context: 'Cuando las cuerdas tienen arcos que sobresalen y quieres un sostén uniforme y natural.',
+            params: { style: 'opto', thresholdDb: -18, ratio: 2.5, kneeDb: 14, attackMs: 25, releaseMs: 300, makeupDb: 2, detector: 'peak' }
+        },
+        {
+            id: 'str_control',
+            label: 'Domar el arco (VCA)',
+            context: 'Cuando los cambios de arco generan picos y quieres sujetarlos manteniendo la expresividad.',
+            params: { style: 'vca', thresholdDb: -16, ratio: 3, kneeDb: 8, attackMs: 12, releaseMs: 200, makeupDb: 2, detector: 'peak' }
+        },
+        {
+            id: 'str_warm',
+            label: 'Cuerdas cálidas (Vari-Mu)',
+            context: 'Cuando buscas densidad y un plus de calidez analógica en la sección de cuerda.',
+            params: { style: 'varimu', thresholdDb: -14, ratio: 2, kneeDb: 16, attackMs: 45, releaseMs: 450, makeupDb: 2, detector: 'rms' }
+        }
+    ],
+    vocals: [
+        {
+            id: 'vox_even',
+            label: 'Voz consistente (Opto)',
+            context: 'Cuando la voz tiene palabras que se van y otras que pisan: el Opto la nivela sin que se note.',
+            params: { style: 'opto', thresholdDb: -20, ratio: 3, kneeDb: 14, attackMs: 20, releaseMs: 400, makeupDb: 4, detector: 'peak' }
+        },
+        {
+            id: 'vox_upward',
+            label: 'Subir los susurros',
+            context: 'Cuando las partes suaves (susurros, suspiros) se pierden bajo las notas fuertes y quieres subirlas sin aplastar.',
+            params: { style: 'opto', thresholdDb: -8, ratio: 2, kneeDb: 10, attackMs: 15, releaseMs: 250, makeupDb: 0, upwardEnabled: true, upwardThresholdDb: -38, upwardRatio: 2 }
+        },
+        {
+            id: 'vox_parallel',
+            label: 'Voz al frente (paralelo)',
+            context: 'Cuando la voz debe sentarse encima de la mezcla sin perder detalle (compresión paralela con mix medio).',
+            params: { style: 'fet', thresholdDb: -24, ratio: 4, kneeDb: 6, attackMs: 8, releaseMs: 150, mix: 0.55, makeupDb: 3, detector: 'peak' }
+        }
+    ],
+    drumbus: [
+        {
+            id: 'drum_glue',
+            label: 'Drum bus cohesionado (Bus)',
+            context: 'Cuando quieres "pegar" toda la batería en una sola imagen con ratio bajo, codo ancho y release lento.',
+            params: { style: 'bus', thresholdDb: -16, ratio: 2, kneeDb: 10, attackMs: 30, releaseMs: 300, makeupDb: 3, detector: 'rms' }
+        },
+        {
+            id: 'drum_punch',
+            label: 'Punch controlado (VCA)',
+            context: 'Cuando el bus necesita mantener la pegada pero sujetar los picos que descuadran el balance.',
+            params: { style: 'vca', thresholdDb: -14, ratio: 4, kneeDb: 4, attackMs: 10, releaseMs: 150, makeupDb: 3, detector: 'peak' }
+        },
+        {
+            id: 'drum_parallel',
+            label: 'Paralelo aplastado NY (mix 40%)',
+            context: 'Cuando buscas el clásico "New York": mucha compresión pero mezclada por debajo para no perder transitorios.',
+            params: { style: 'fet', thresholdDb: -30, ratio: 8, kneeDb: 2, attackMs: 2, releaseMs: 100, mix: 0.4, makeupDb: 6, detector: 'peak' }
+        }
+    ],
+    generic: [
+        {
+            id: 'gen_control',
+            label: 'Control básico (VCA)',
+            context: 'Punto de partida neutro para cualquier material: controla picos con un ajuste equilibrado y transparente.',
+            params: { style: 'vca', thresholdDb: -18, ratio: 3, kneeDb: 6, attackMs: 10, releaseMs: 200, makeupDb: 2, detector: 'peak' }
+        },
+        {
+            id: 'gen_glue',
+            label: 'Glue suave (Bus)',
+            context: 'Cuando quieres cohesión general con poca reducción y un carácter "pegajoso" sin cambiar el tono.',
+            params: { style: 'bus', thresholdDb: -14, ratio: 2, kneeDb: 12, attackMs: 30, releaseMs: 300, makeupDb: 2, detector: 'rms' }
+        },
+        {
+            id: 'gen_limit',
+            label: 'Limitador de seguridad (FET)',
+            context: 'Cuando solo quieres techo: frenar picos aislados con ratio alto y ataque rapidísimo sin tocar el resto.',
+            params: { style: 'fet', thresholdDb: -8, ratio: 8, kneeDb: 2, attackMs: 1, releaseMs: 80, makeupDb: 1, detector: 'peak' }
+        }
+    ],
+    mastering: [
+        {
+            id: 'mst_glue',
+            label: 'Glue transparente (2-bus)',
+            context: 'Cuando tienes una mezcla ya equilibrada y solo quieres unirla: compresión de bus suave, ratio bajo y release medio.',
+            params: { style: 'bus', thresholdDb: -12, ratio: 2, kneeDb: 10, attackMs: 30, releaseMs: 250, makeupDb: 1, detector: 'rms' }
+        },
+        {
+            id: 'mst_loud',
+            label: 'Densidad y loudness (VCA)',
+            context: 'Cuando buscas subir el nivel percibido y ganar densidad manteniendo el control con detección RMS.',
+            params: { style: 'vca', thresholdDb: -14, ratio: 3, kneeDb: 6, attackMs: 20, releaseMs: 200, makeupDb: 2, detector: 'rms' }
+        },
+        {
+            id: 'mst_warm',
+            label: 'Master cálido (Vari-Mu)',
+            context: 'Cuando quieres aportar calor y cohesión de válvulas con poca reducción, al estilo de un 2-bus musical.',
+            params: { style: 'varimu', thresholdDb: -14, ratio: 2, kneeDb: 16, attackMs: 40, releaseMs: 400, makeupDb: 1.5, detector: 'rms' }
+        }
+    ]
+};
+
+/** Human labels for the recipe families (keyed like DYNAMICS_SOURCE_RECIPES). */
+export const DYNAMICS_SOURCE_FAMILY_LABELS = {
+    kick: 'Bombo / Kick',
+    snare: 'Caja / Snare',
+    cymbals: 'Platos / Overheads',
+    bass: 'Bajo',
+    epiano: 'Teclados',
+    toms: 'Toms',
+    guitars: 'Guitarras',
+    organ: 'Órgano',
+    room: 'Sala / Room',
+    orchestra: 'Orquesta',
+    strings: 'Cuerdas',
+    vocals: 'Voces',
+    drumbus: 'Batería / Mezcla',
+    generic: 'Material general',
+    mastering: 'Mastering (pista cargada)'
 };
 
 /** Flattens every scenario into a single array (stable order). */
