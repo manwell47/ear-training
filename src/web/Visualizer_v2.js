@@ -72,9 +72,31 @@ export class Visualizer {
     this.resizeObserver.observe(this.canvas);
     this.resize();
 
-    // Start 60 FPS render loop
+    // Start 60 FPS render loop. Pausable so the DYNAMIC RANGE lab can own the
+    // single frame budget (two concurrent rAF loops are forbidden by the plan).
     this.render = this.render.bind(this);
-    requestAnimationFrame(this.render);
+    this._running = true;
+    this._raf = 0;
+    this._raf = requestAnimationFrame(this.render);
+  }
+
+  /**
+   * Resumes the 60 FPS render loop if it was paused. Safe to call repeatedly.
+   */
+  start() {
+    if (this._running) return;
+    this._running = true;
+    this._raf = requestAnimationFrame(this.render);
+  }
+
+  /**
+   * Pauses the 60 FPS render loop so another canvas (the Pro-C2 compressor) can
+   * drive the frame budget alone. Safe to call repeatedly.
+   */
+  stop() {
+    this._running = false;
+    if (this._raf) cancelAnimationFrame(this._raf);
+    this._raf = 0;
   }
 
   /**
@@ -409,7 +431,7 @@ export class Visualizer {
       return; // Stop loop
     }
 
-    requestAnimationFrame(this.render);
+    if (this._running) this._raf = requestAnimationFrame(this.render);
   }
 
   drawGrid() {

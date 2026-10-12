@@ -10,7 +10,7 @@
   <title>Ear Training App - CSS Grid Studio VST Spectrum</title>
   <meta name="description"
     content="Plataforma profesional de entrenamiento auditivo y ecualización quirúrgica en el navegador usando Web Audio API. Sin instalación.">
-  <link rel="stylesheet" href="styles_v2.css?v=71">
+  <link rel="stylesheet" href="styles_v2.css?v=80">
 </head>
 
 <body>
@@ -70,8 +70,8 @@
       </div>
 
       <div class="header-right">
-        <!-- Selector de Dificultad -->
-        <div class="toolbar-group">
+        <!-- Selector de Dificultad (oculto en el laboratorio de dinámica) -->
+        <div class="toolbar-group" id="difficultyGroup">
           <div class="mode-group">
             <button id="btnModeEasy" class="mode-btn active" data-mode="easy"
               onclick="window.setMode && window.setMode('easy')">Fácil</button>
@@ -135,6 +135,170 @@
           <!-- Tracks dynamically injected here by App.js -->
         </div>
       </div>
+
+      <!-- Dynamic Range Panel (Hidden by default; revealed in DYNAMICS mode).
+           The canvas is driven by src/web/CompressorUI.js and mirrors the DSP curve. -->
+      <div id="dynamicsPanel" class="dynamics-panel hidden">
+        <div class="dynamics-header">
+          <span class="dynamics-title">DYNAMIC RANGE</span>
+          <div class="dynamics-header-right">
+            <button id="btnDynHelp" class="analyzer-res-btn" type="button"
+              title="Modo Enseñanza: mantén 1 s sobre cualquier control para ver su explicación">❓ Ayuda</button>
+            <button id="dynColorSwitch" class="analyzer-res-btn dyn-toggle" type="button" aria-pressed="false"
+              title="Colorea la curva según el carácter del compresor (VCA/FET/Opto/Vari-Mu/Bus)">Color</button>
+            <button id="dynAutoGainBtn" class="analyzer-res-btn dyn-toggle" type="button" aria-pressed="true"
+              title="Compensación automática de ganancia para comparar a igualdad de volumen">Auto-Gain</button>
+          </div>
+        </div>
+
+        <div class="dynamics-body">
+          <div class="dynamics-stage">
+            <div class="dynamics-canvas-wrap">
+              <canvas id="compressorCanvas"></canvas>
+            </div>
+            <!-- Complementary TEMPORAL graph (input envelope + gain reduction),
+                 driven by DynamicsScopeRenderer.js. It sits below the static
+                 transfer curve instead of replacing it. -->
+            <div class="dynamics-scope-wrap">
+              <div class="dynamics-scope-head">
+                <span class="dynamics-scope-title">SEÑAL EN EL TIEMPO</span>
+                <span class="dynamics-scope-legend">
+                  <span class="dyn-legend-item"><span class="dyn-dot dyn-dot-env"></span>Entrada</span>
+                  <span class="dyn-legend-item"><span class="dyn-dot dyn-dot-gr"></span>Reducción</span>
+                  <span class="dyn-legend-item"><span class="dyn-dot dyn-dot-thr"></span>Umbral</span>
+                </span>
+              </div>
+              <canvas id="dynScopeCanvas"></canvas>
+            </div>
+          </div>
+
+          <aside class="dynamics-rail">
+            <div class="dynamics-rail-block">
+              <div class="dynamics-rail-title">Tipo de compresor</div>
+              <div id="dynTypeChips" class="dyn-type-chips">
+                <button class="dyn-chip" data-dyn-style="vca" type="button">VCA</button>
+                <button class="dyn-chip" data-dyn-style="fet" type="button">FET</button>
+                <button class="dyn-chip" data-dyn-style="opto" type="button">Opto</button>
+                <button class="dyn-chip" data-dyn-style="varimu" type="button">Vari-Mu</button>
+                <button class="dyn-chip" data-dyn-style="bus" type="button">Bus</button>
+              </div>
+            </div>
+
+            <div class="dynamics-rail-block" id="dynSidechainBlock" hidden>
+              <div class="dynamics-rail-title">Ruta / Sidechain</div>
+              <label class="dyn-field" data-help="sidechain">
+                <span>Sidechain desde</span>
+                <select id="dynSidechainSelect" class="surgical-select">
+                  <option value="">— (auto / ninguno) —</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="dynamics-rail-block">
+              <div class="dynamics-rail-title">Detección</div>
+              <label class="dyn-field" data-help="detector">
+                <span>Detector</span>
+                <select id="dynDetectorSelect" class="surgical-select">
+                  <option value="peak">Peak</option>
+                  <option value="rms">RMS</option>
+                </select>
+              </label>
+              <label class="dyn-field" data-help="feedback">
+                <span>Topología</span>
+                <select id="dynFeedbackSelect" class="surgical-select">
+                  <option value="feedforward">Feed-forward</option>
+                  <option value="feedback">Feedback</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="dynamics-rail-block">
+              <div class="dynamics-rail-title">Modo</div>
+              <label class="dyn-field" data-help="mode">
+                <span>Procesador</span>
+                <select id="dynModeSelect" class="surgical-select">
+                  <option value="compress">Compresor (downwards)</option>
+                  <option value="expand">Puerta / Expansor</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="dynamics-rail-block">
+              <div class="dynamics-rail-title" data-help="upwardEnabled">Upward</div>
+              <label class="dyn-switch">
+                <input type="checkbox" id="dynUpwardEnable">
+                <span>Compresión al alza</span>
+              </label>
+              <div class="surgical-knob-group" data-help="upwardThreshold">
+                <div class="surgical-label">
+                  <span>UMBRAL ↑</span>
+                  <span id="dynUpwardThresholdValue" class="surgical-value">-30.0 dB</span>
+                </div>
+                <input type="range" id="dynUpwardThreshold" class="surgical-slider" min="-60" max="0" step="0.1"
+                  value="-30">
+              </div>
+              <div class="surgical-knob-group" data-help="upwardRatio">
+                <div class="surgical-label">
+                  <span>RATIO ↑</span>
+                  <span id="dynUpwardRatioValue" class="surgical-value">2.00:1</span>
+                </div>
+                <input type="range" id="dynUpwardRatio" class="surgical-slider" min="1" max="10" step="0.01" value="2">
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <!-- The transfer curve lives on #compressorCanvas (CompressorUI.js); the
+             complementary temporal graph lives on #dynScopeCanvas above. -->
+
+        <!-- Shared parameter row (thicker controls share one editing contract) -->
+        <div id="dynamicsKnobRow" class="dynamics-knob-row">
+          <div class="surgical-knob-group" data-help="threshold">
+            <div class="surgical-label"><span>THRESHOLD</span><span id="dynThresholdValue" class="surgical-value">-18.0
+                dB</span></div>
+            <input type="range" id="dynThreshold" class="surgical-slider" min="-60" max="0" step="0.1" value="-18">
+          </div>
+          <div class="surgical-knob-group" data-help="ratio">
+            <div class="surgical-label"><span>RATIO</span><span id="dynRatioValue" class="surgical-value">4.00:1</span>
+            </div>
+            <input type="range" id="dynRatio" class="surgical-slider" min="1" max="20" step="0.01" value="4">
+          </div>
+          <div class="surgical-knob-group" data-help="knee">
+            <div class="surgical-label"><span>KNEE</span><span id="dynKneeValue" class="surgical-value">6.0 dB</span>
+            </div>
+            <input type="range" id="dynKnee" class="surgical-slider" min="0" max="24" step="0.1" value="6">
+          </div>
+          <div class="surgical-knob-group" data-help="attack">
+            <div class="surgical-label"><span>ATTACK</span><span id="dynAttackValue" class="surgical-value">10.0
+                ms</span></div>
+            <input type="range" id="dynAttack" class="surgical-slider" min="0.1" max="300" step="0.1" value="10">
+          </div>
+          <div class="surgical-knob-group" data-help="release">
+            <div class="surgical-label"><span>RELEASE</span><span id="dynReleaseValue" class="surgical-value">120
+                ms</span></div>
+            <input type="range" id="dynRelease" class="surgical-slider" min="10" max="2000" step="1" value="120">
+          </div>
+          <div class="surgical-knob-group" data-help="hold">
+            <div class="surgical-label"><span>HOLD</span><span id="dynHoldValue" class="surgical-value">0.0 ms</span>
+            </div>
+            <input type="range" id="dynHold" class="surgical-slider" min="0" max="500" step="1" value="0">
+          </div>
+          <div class="surgical-knob-group" data-help="makeup">
+            <div class="surgical-label"><span>MAKEUP</span><span id="dynMakeupValue" class="surgical-value">0.0
+                dB</span>
+            </div>
+            <input type="range" id="dynMakeup" class="surgical-slider" min="-12" max="24" step="0.1" value="0">
+          </div>
+          <div class="surgical-knob-group" data-help="mix">
+            <div class="surgical-label"><span>MIX</span><span id="dynMixValue" class="surgical-value">100 %</span>
+            </div>
+            <input type="range" id="dynMix" class="surgical-slider" min="0" max="100" step="1" value="100">
+          </div>
+        </div>
+      </div>
+
+      <!-- E2: Teoría sub-mode panel (ADSR + interactive attack/release demo) -->
+      <div id="theoryPanel" class="theory-panel hidden"></div>
     </main>
 
     <!-- Fila 3: Bottom Dock (100% Ancho Inferior, De Lado a Lado) -->
@@ -201,6 +365,27 @@
           </button>
 
         </div>
+      </div>
+
+      <!-- Dynamic Range Dock (Challenge prompt + A/B bypass + submit verdict) -->
+      <div id="dynamicsDockSection" class="dynamics-dock-section hidden">
+        <div class="dynamics-dock-prompt">
+          <span id="dynChallengePrompt">Explora libremente los parámetros o inicia una práctica guiada para entrenar el
+            control de la dinámica.</span>
+        </div>
+        <div class="dynamics-dock-actions">
+          <button id="dynBypassBtn" class="btn btn-secondary" type="button"
+            title="Comparar A/B: escuchar sin compresión (bypass) y con compresión">A/B Bypass</button>
+          <button id="dynTipsBtn" class="btn btn-secondary" type="button" aria-pressed="false"
+            title="Pro Tips: buenas prácticas y usos típicos de la compresión">💡 Pro Tips</button>
+          <button id="dynRevealBtn" class="btn btn-secondary hidden" type="button"
+            title="Mostrar la receta de referencia del caso (para autocorregirte)">👁 Revelar referencia</button>
+          <button id="dynSubmitBtn" class="btn btn-accent btn-submit-disabled" type="button" disabled>
+            🎯 Enviar Ajuste
+          </button>
+        </div>
+        <div id="dynCaseVerdict" class="dyn-case-verdict hidden" aria-live="polite"></div>
+        <div id="dynTipsPanel" class="dyn-tips-panel hidden" aria-hidden="true"></div>
       </div>
 
       <!-- Componente de Resultados Integrado en Fila 3 (Reemplaza a las Opciones al terminar el ensayo) -->
@@ -323,17 +508,20 @@
             </button>
           </div>
 
-          <!-- Module 2: Dynamic Range (Locked) -->
-          <div class="module-card locked-module">
+          <!-- Module 2: Dynamic Range (Active) -->
+          <div class="module-card active-module">
             <div class="module-icon">🎚️</div>
             <div class="module-name">
               <span>Dynamic Range</span>
-              <span class="badge-locked">Próximamente</span>
+              <span class="badge-easy">Disponible</span>
             </div>
             <p class="module-desc">
-              Entrenamiento en compresión, ataque, release, ratio, knee y saturación armónica.
+              Laboratorio de compresión: tipo (VCA/FET/Opto/Vari-Mu/Bus), umbral, ratio, codo, ataque, release,
+              compresión al alza, paralelo y sidechain kick↔bajo.
             </p>
-            <button class="btn btn-disabled" disabled>Próximamente</button>
+            <button id="btnSelectDynamicRange" class="btn btn-primary" style="margin-top: auto;">
+              Seleccionar ➔
+            </button>
           </div>
 
           <!-- Module 3: Spatial Pan (Locked) -->
@@ -414,6 +602,80 @@
               Subir Pista y Jugar
             </button>
           </div>
+        </div>
+      </div>
+
+
+      <!-- Step 1.6: DYNAMICS_MODE_SELECT (sub-mode chooser for module 2) -->
+      <div id="screenDynamicsModeSelect" class="onboarding-step hidden">
+        <div class="step-header">
+          <button class="btn btn-secondary btn-compact" id="btnBackToModulesFromDyn" style="margin-bottom: 1rem;">←
+            Volver</button>
+          <h2 class="step-title">Laboratorio de Rango Dinámico</h2>
+          <p class="step-subtitle">Explora la compresión antes de que nadie te evalúe. Elige cómo quieres empezar:</p>
+        </div>
+
+        <div class="modules-grid">
+          <!-- Sub-mode 0: Theory (didactic foundations + ADSR) -->
+          <div class="module-card active-module" style="border-color: #a855f7;">
+            <div class="module-icon" style="color: #a855f7;">📖</div>
+            <div class="module-name" style="color: #a855f7;"><span>Teoría</span></div>
+            <p class="module-desc">
+              Fundamentos del rango dinámico: la curva ADSR, la curva de transferencia, las cinco familias de compresor
+              y el sidechain. Incluye una demostración interactiva de ataque/relajación sobre el sonido real.
+            </p>
+            <button class="btn btn-secondary dyn-mode-btn" data-dyn-mode="theory"
+              style="margin-top: auto; border-color: #a855f7; color: #a855f7;">
+              Estudiar Teoría
+            </button>
+          </div>
+
+          <!-- Sub-mode 1: Explore (unscored sandbox) -->
+          <div class="module-card active-module">
+            <div class="module-icon">🧪</div>
+            <div class="module-name"><span>Explorar</span></div>
+            <p class="module-desc">
+              Arenero libre: carga cualquier instrumento, elige un tipo de compresor (VCA, FET, Opto, Vari-Mu, Bus),
+              mueve todos los controles y observa la curva de transferencia y el medidor de reducción en vivo.
+            </p>
+            <button class="btn btn-primary dyn-mode-btn" data-dyn-mode="explore" style="margin-top: auto;">
+              Entrar a Explorar
+            </button>
+          </div>
+
+          <!-- Sub-mode 2: Práctica Guiada (unscored, de-gamified curriculum) -->
+          <div class="module-card active-module">
+            <div class="module-icon">🧭</div>
+            <div class="module-name"><span>Práctica Guiada</span></div>
+            <p class="module-desc">
+              Diez pasos guiados, sin puntuación ni vidas: sentido de la compresión, umbral/ratio, ataque, release,
+              codo, paralelo, tipo de compresor, sidechain kick↔bajo y glue de bus. Aprende a tu ritmo con comentarios
+              cualitativos.
+            </p>
+            <button class="btn btn-accent dyn-mode-btn" data-dyn-mode="challenge" style="margin-top: auto;">
+              Empezar Práctica
+            </button>
+          </div>
+
+          <!-- Sub-mode 3: Case studies (guided recipes) -->
+          <div class="module-card active-module" style="border-color: var(--accent-emerald);">
+            <div class="module-icon" style="color: var(--accent-emerald);">📚</div>
+            <div class="module-name" style="color: var(--accent-emerald);"><span>Casos de Estudio</span></div>
+            <p class="module-desc">
+              Recetas guiadas con un objetivo claro y una comprobación: conservar la pegada del bombo, pegar el bus de
+              batería, hundir el bajo con sidechain o recuperar la voz con compresión al alza.
+            </p>
+            <button class="btn btn-secondary dyn-mode-btn" data-dyn-mode="case"
+              style="margin-top: auto; border-color: var(--accent-emerald); color: var(--accent-emerald);">
+              Ver Casos
+            </button>
+          </div>
+        </div>
+
+        <div class="step-footer">
+          <p class="step-subtitle" style="margin: 0;">
+            Consejo: mantén el ratón quieto 1 segundo sobre cualquier control para ver su explicación.
+          </p>
         </div>
       </div>
 
@@ -689,7 +951,7 @@
       originalConsoleError.apply(console, args);
     };
   </script>
-  <script type="module" src="./src/web/App.js?v=71"></script>
+  <script type="module" src="./src/web/App.js?v=80"></script>
 </body>
 
 </html>

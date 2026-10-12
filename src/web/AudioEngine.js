@@ -5,7 +5,8 @@
  * Paul Kellet 7-stage Pink Noise procedural generation, and AudioResourceManager integration.
  */
 
-import { AudioResourceManager, AUDIO_SOURCES, MULTITRACK_SESSIONS, AUDIO_BASE_PATH } from './AudioResourceManager.js?v=70';
+import { AudioResourceManager, AUDIO_SOURCES, MULTITRACK_SESSIONS, AUDIO_BASE_PATH } from './AudioResourceManager.js?v=80';
+import { DynamicsEngine, DYNAMICS_CACHE_VERSION } from './DynamicsEngine.js?v=80';
 
 export class AudioEngine {
   constructor() {
@@ -54,6 +55,22 @@ export class AudioEngine {
     // (you always compare the same ducked bed, only the target EQ changes).
     this.spotlightEnabled = true;
     this.spotlightDuckDb = -6.0;
+
+    // ── Dynamic Range module (module 2) ──────────────────────────────────────
+    // The compressor is inserted on the *auditioned* (target / single) path so
+    // it processes the instrument under study; non-target stems bypass it and
+    // sum straight into the master. An optional external sidechain key is tapped
+    // from another stem's gain node (e.g. kick -> bass ducking). The insert is
+    // inactive (clean pass-through) whenever dynamicsActive is false.
+    /** @type {DynamicsEngine|null} */
+    this.dynamicsEngine = null;
+    this.dynamicsActive = false;
+    /** @type {string|null} stem id feeding the external sidechain key */
+    this.dynamicsSidechainStemId = null;
+    /** @type {AudioNode|null} last-connected sidechain tap node */
+    this._dynamicsSidechainTap = null;
+    /** optional telemetry sink: (data) => void */
+    this.onDynamicsTelemetry = null;
 
     // Initialize synchronously for canvas frequency rendering readiness
     this.initNodes();
@@ -648,6 +665,116 @@ export class AudioEngine {
     return Math.pow(10, this.spotlightDuckDb / 20);
   }
 
+  // ───────────────────── Dynamic Range insert (module 2) ─────────────────────
+
+  /**
+   * Lazily builds and activates the Dynamic Range compressor on the auditioned
+   * (target / single) monitor path. Idempotent: re-calling reuses the engine.
+   * @param {object} [config]
+   * @param {object} [config.params]               initial / updated DSP parameters
+   * @param {string|null} [config.sidechainStemId] stem id feeding the sidechain key
+   * @param {boolean} [config.active=true]         whether the insert should process
+   * @returns {Promise<DynamicsEngine|null>}
+   */
+  async buildDynamicsGraph(config = {}) {
+    if (!this.ctx) this.initNodes();
+    if (!this.ctx) return null;
+
+    if (!this.dynamicsEngine) {
+      this.dynamicsEngine = new DynamicsEngine(this.ctx, { version: DYNAMICS_CACHE_VERSION });
+      this._bindDynamicsTelemetry();
+    }
+
+    await this.dynamicsEngine.init();
+    if (!this.dynamicsEngine.isReady) {
+      // No noise fallback (project_rules §3): surface the failure, keep clean path.
+      console.error('[AudioEngine] Dynamics module unavailable; keeping the clean monitor path.');
+      this.dynamicsActive = false;
+      return null;
+    }
+
+    if (config.params) this.dynamicsEngine.setParams(config.params);
+    if (config.sidechainStemId !== undefined) this.dynamicsSidechainStemId = config.sidechainStemId;
+    this.dynamicsActive = config.active === false ? false : true;
+
+    // Node output sums into the master bus (connect() is idempotent).
+    this.dynamicsEngine.connectOutput(this.masterGain);
+    this.switchMonitor(this.activeRoute);
+    return this.dynamicsEngine;
+  }
+
+  /**
+   * Pushes a partial parameter patch to the active insert (no-op if absent).
+   * `sidechainStemId` re-taps the external key; the remaining keys go to the DSP.
+   * @param {object} partial
+   * @returns {object|null} the new full param set
+   */
+  setDynamicsConfig(partial) {
+    if (!this.dynamicsEngine) return null;
+    const patch = { ...(partial || {}) };
+    let retap = false;
+    if ('sidechainStemId' in patch) {
+      this.dynamicsSidechainStemId = patch.sidechainStemId;
+      delete patch.sidechainStemId;
+      retap = true;
+    }
+    const params = Object.keys(patch).length
+      ? this.dynamicsEngine.setParams(patch)
+      : this.dynamicsEngine.getParams();
+    if (retap) this.switchMonitor(this.activeRoute);
+    return params;
+  }
+
+  /**
+   * Removes the Dynamic Range insert entirely and restores the clean monitor path.
+   */
+  teardownDynamics() {
+    this.dynamicsActive = false;
+    this._dynamicsSidechainTap = null;
+    if (this.dynamicsEngine) {
+      this.dynamicsEngine.dispose();
+      this.dynamicsEngine = null;
+    }
+    this.switchMonitor(this.activeRoute);
+  }
+
+  /**
+   * Registers the telemetry sink for the dynamics insert (GR / in / out dBFS).
+   * @param {((data:object)=>void)|null} cb
+   */
+  setDynamicsTelemetryHandler(cb) {
+    this.onDynamicsTelemetry = (typeof cb === 'function') ? cb : null;
+    this._bindDynamicsTelemetry();
+  }
+
+  _bindDynamicsTelemetry() {
+    if (this.dynamicsEngine) {
+      this.dynamicsEngine.onTelemetry(this.onDynamicsTelemetry || null);
+    }
+  }
+
+  /**
+   * Re-taps the external sidechain key. MUST run after switchMonitor() has
+   * reconnected the stem gain nodes (its first step disconnects every output).
+   */
+  _wireDynamicsSidechain() {
+    if (!this.dynamicsEngine || !this.dynamicsEngine.isReady) return;
+    const stemId = this.dynamicsSidechainStemId;
+    const tap = (stemId && this.stemGainNodes) ? this.stemGainNodes[stemId] : null;
+    if (!tap) return;
+
+    // Never key a compressor with the very stem it processes.
+    const tgt = this.currentMultitrackSession ? this.currentMultitrackSession.targetStem : null;
+    if (stemId === tgt) return;
+
+    try {
+      tap.connect(this.dynamicsEngine.node, 0, 1);
+      this._dynamicsSidechainTap = tap;
+    } catch (e) {
+      console.warn('[AudioEngine] sidechain tap failed:', e);
+    }
+  }
+
   /**
    * Exclusive A/B/C Monitor Multiplexing.
    * Route A: Clean / Flat -> Source -> masterGain -> Analyser -> Destination
@@ -667,6 +794,13 @@ export class AudioEngine {
 
     this.activeRoute = norm;
     if (!this.ctx) return;
+
+    // Dynamic Range insert: when active, the auditioned (target/single) path is
+    // routed through the compressor; non-target stems go straight to the master.
+    const dynNode = (this.dynamicsActive && this.dynamicsEngine && this.dynamicsEngine.isReady)
+      ? this.dynamicsEngine.node
+      : null;
+    const processedDest = dynNode || this.masterGain;
 
     // 1. Disconnect filter endpoints
     if (this.targetGraphNodes.length > 0) {
@@ -708,16 +842,19 @@ export class AudioEngine {
         const firstFilter = this.targetGraphNodes[0];
         const lastFilter = this.targetGraphNodes[this.targetGraphNodes.length - 1];
         outNode.connect(firstFilter);
-        if (this.masterGain) lastFilter.connect(this.masterGain);
+        if (processedDest) lastFilter.connect(processedDest);
       } else if (norm === 'C' && this.userGraphNodes.length > 0) {
         const firstFilter = this.userGraphNodes[0];
         const lastFilter = this.userGraphNodes[this.userGraphNodes.length - 1];
         outNode.connect(firstFilter);
-        if (this.masterGain) lastFilter.connect(this.masterGain);
+        if (processedDest) lastFilter.connect(processedDest);
       } else {
-        if (this.masterGain) outNode.connect(this.masterGain);
+        if (processedDest) outNode.connect(processedDest);
       }
     });
+
+    // Re-tap the external sidechain key AFTER stem nodes were (re)connected.
+    this._wireDynamicsSidechain();
   }
 
   /**
@@ -959,6 +1096,42 @@ export class AudioEngine {
     if (this.preAnalyser) {
       this.preAnalyser.getFloatFrequencyData(outputArray);
     }
+  }
+
+  /**
+   * Time-domain snapshot of the post-compression (wet) signal.
+   * Requires a Float32Array sized to `analyser.fftSize`.
+   * @param {Float32Array} outputArray
+   * @returns {Float32Array}
+   */
+  getTimeDomainData(outputArray) {
+    if (this.analyser) {
+      this.analyser.getFloatTimeDomainData(outputArray);
+    }
+    return outputArray;
+  }
+
+  /**
+   * Time-domain snapshot of the pre-compression (dry) signal.
+   * Requires a Float32Array sized to `preAnalyser.fftSize`.
+   * @param {Float32Array} outputArray
+   * @returns {Float32Array}
+   */
+  getPreTimeDomainData(outputArray) {
+    if (this.preAnalyser) {
+      this.preAnalyser.getFloatTimeDomainData(outputArray);
+    }
+    return outputArray;
+  }
+
+  /** Number of samples available per time-domain read (post analyser). */
+  get timeDomainLength() {
+    return this.analyser ? this.analyser.fftSize : 2048;
+  }
+
+  /** Sample rate of the running context (defaults to 48 kHz). */
+  get sampleRateHz() {
+    return (this.ctx && this.ctx.sampleRate) || 48000;
   }
 
   setMasterVolume(vol) {

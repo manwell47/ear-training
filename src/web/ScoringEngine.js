@@ -5,7 +5,7 @@
  * independently using continuous linear tolerance curves and dynamic feedback messaging.
  */
 
-import { ACOUSTIC_MATRIX, resolveAcousticClassKey } from './AcousticMatrix.js?v=70';
+import { ACOUSTIC_MATRIX, resolveAcousticClassKey } from './AcousticMatrix.js?v=80';
 
 export class ScoringEngine {
   /**
@@ -313,6 +313,187 @@ export class ScoringEngine {
   static analyzeProPractices(target, guess) {
     return analyzeProPractices(target, guess);
   }
+
+  /**
+   * Evaluates a dynamic-range (compressor) guess against a target parameter set.
+   *
+   * Score model (didactic + weighted):
+   *   - Each scored key contributes `weight * subScore`, where the sub-score is a
+   *     continuous tolerance curve: 1.0 inside the "expert" tolerance, 0 beyond the
+   *     "off" tolerance, linearly interpolated in between.
+   *   - dB / mix / hold use an absolute tolerance; ratios use a relative tolerance;
+   *     attack & release use a log2 (musical) tolerance.
+   *   - Categorical keys (style, sidechain) are exact-match and, when wrong, block a
+   *     "correct" verdict so a mismatched topology can never silently pass.
+   *   - A small synthetic "direction" component rewards agreeing on upward-vs-downward
+   *     compression, so a purely downward answer cannot fully pass an upward scenario.
+   *
+   * @param {object} target sanitized reference params (see DEFAULT_DYNAMICS_PARAMS).
+   * @param {object} guess  sanitized user params.
+   * @param {{challenge?:object,scenario?:object,mode?:string}} [ctx]
+   * @returns {{
+   *   totalScore:number,
+   *   accuracyPercentage:number,
+   *   isCorrect:boolean,
+   *   feedbackMessage:string,
+   *   ratingLabel:string,
+   *   breakdown:Array<{key:string,weight:number,score:number}>
+   * }}
+   */
+  static evaluateDynamics(target, guess, ctx = {}) {
+    const MAX_DYNAMICS_SCORE = 1000;
+
+    const TOLERANCE = {
+      thresholdDb: { kind: 'abs', good: 1.5, bad: 6 },
+      upwardThresholdDb: { kind: 'abs', good: 1.5, bad: 6 },
+      kneeDb: { kind: 'abs', good: 2, bad: 8 },
+      makeupDb: { kind: 'abs', good: 1.5, bad: 6 },
+      holdMs: { kind: 'abs', good: 15, bad: 80 },
+      mix: { kind: 'abs', good: 0.05, bad: 0.35 },
+      ratio: { kind: 'rel', good: 0.12, bad: 0.6 },
+      upwardRatio: { kind: 'rel', good: 0.15, bad: 0.7 },
+      attackMs: { kind: 'log', good: 0.25, bad: 1.2 },
+      releaseMs: { kind: 'log', good: 0.25, bad: 1.2 }
+    };
+
+    // Used when a caller submits without a challenge (e.g. a bare Lab probe).
+    const DEFAULT_WEIGHTS = {
+      thresholdDb: 0.3,
+      ratio: 0.25,
+      attackMs: 0.15,
+      releaseMs: 0.15,
+      style: 0.15
+    };
+
+    const LABELS = {
+      thresholdDb: 'el umbral de compresión',
+      ratio: 'el ratio',
+      kneeDb: 'el codo (knee)',
+      attackMs: 'el ataque',
+      releaseMs: 'el release',
+      holdMs: 'el hold',
+      makeupDb: 'la ganancia de compensación (makeup)',
+      mix: 'la mezcla dry/wet',
+      upwardThresholdDb: 'el umbral de compresión al alza',
+      upwardRatio: 'el ratio al alza',
+      style: 'el tipo de compresor',
+      sidechain: 'el disparador de sidechain',
+      direction: 'la dirección (arriba vs abajo)'
+    };
+
+    const t = target || {};
+    const g = guess || {};
+    const challenge = ctx && ctx.challenge ? ctx.challenge : null;
+    const rawWeights =
+      challenge && challenge.weights && Object.keys(challenge.weights).length
+        ? challenge.weights
+        : DEFAULT_WEIGHTS;
+
+    const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+    const curve = (distance, good, bad) => {
+      const d = Math.abs(distance);
+      if (d <= good) return 1;
+      if (d >= bad) return 0;
+      return clamp01(1 - (d - good) / (bad - good));
+    };
+
+    const numericScore = (tv, gv, tol) => {
+      if (!tol) return curve(gv - tv, 1, 4);
+      if (tol.kind === 'rel') {
+        const base = Math.max(Math.abs(tv), 1e-6);
+        return curve((gv - tv) / base, tol.good, tol.bad);
+      }
+      if (tol.kind === 'log') {
+        const lv = Math.log2(Math.max(gv, 1e-3) / Math.max(tv, 1e-3));
+        return curve(lv, tol.good, tol.bad);
+      }
+      return curve(gv - tv, tol.good, tol.bad);
+    };
+
+    const breakdown = [];
+    let weightedSum = 0;
+    let weightTotal = 0;
+    let categoricalOk = true;
+
+    Object.keys(rawWeights).forEach((key) => {
+      const w = Math.max(0, Number(rawWeights[key]) || 0);
+      if (w <= 0) return;
+
+      let score = 0;
+      if (key === 'style') {
+        score = t.style === g.style ? 1 : 0;
+        if (score < 1) categoricalOk = false;
+      } else if (key === 'sidechain') {
+        score = (!!t.sidechain === !!g.sidechain) ? 1 : 0;
+        if (score < 1) categoricalOk = false;
+      } else if (key === 'detector') {
+        score = t.detector === g.detector ? 1 : 0;
+      } else if (key === 'feedback') {
+        score = (!!t.feedback === !!g.feedback) ? 1 : 0;
+      } else if (key === 'upwardEnabled') {
+        score = (!!t.upwardEnabled === !!g.upwardEnabled) ? 1 : 0;
+      } else {
+        score = numericScore(Number(t[key]) || 0, Number(g[key]) || 0, TOLERANCE[key]);
+      }
+
+      weightedSum += w * score;
+      weightTotal += w;
+      breakdown.push({ key, weight: w, score: Math.round(score * 100) / 100 });
+    });
+
+    // Direction: reward agreeing on upward-vs-downward compression.
+    const hasUpwardWeight =
+      Object.prototype.hasOwnProperty.call(rawWeights, 'upwardThresholdDb') ||
+      Object.prototype.hasOwnProperty.call(rawWeights, 'upwardRatio') ||
+      Object.prototype.hasOwnProperty.call(rawWeights, 'upwardEnabled');
+    const dirWeight = hasUpwardWeight ? 0.1 : 0.15;
+    const dirScore = (!!t.upwardEnabled === !!g.upwardEnabled) ? 1 : 0;
+    weightedSum += dirWeight * dirScore;
+    weightTotal += dirWeight;
+    breakdown.push({ key: 'direction', weight: dirWeight, score: dirScore });
+
+    const accuracy = weightTotal > 0 ? clamp01(weightedSum / weightTotal) : 0;
+    const accuracyPercentage = Math.round(accuracy * 100);
+    const totalScore = Math.round(accuracy * MAX_DYNAMICS_SCORE);
+    const isCorrect = accuracyPercentage >= 80 && categoricalOk;
+
+    const ratingLabel =
+      accuracyPercentage >= 95 ? 'Oído de estudio'
+        : accuracyPercentage >= 80 ? 'Sólido'
+          : accuracyPercentage >= 60 ? 'En progreso'
+            : 'Sigue practicando';
+
+    let feedbackMessage;
+    if (isCorrect) {
+      feedbackMessage =
+        accuracyPercentage >= 95
+          ? 'Ajuste casi perfecto: controlas este parámetro.'
+          : 'Bien: el ajuste cae dentro de la tolerancia didáctica del objetivo.';
+    } else if (!categoricalOk) {
+      const missed = breakdown
+        .filter((b) => (b.key === 'style' || b.key === 'sidechain') && b.score < 1)
+        .map((b) => LABELS[b.key] || b.key);
+      feedbackMessage =
+        `Casi (${accuracyPercentage}%). Pero revisa ${missed.join(' y ')}: ` +
+        'la familia de compresor o el disparador no coinciden con lo que pide el escenario.';
+    } else {
+      const worst = breakdown
+        .slice()
+        .sort((a, b) => (a.score - b.score) || (b.weight - a.weight))[0];
+      const label = worst && LABELS[worst.key] ? LABELS[worst.key] : 'los parámetros';
+      feedbackMessage = `Vas cerca (${accuracyPercentage}%). Afina sobre todo ${label}.`;
+    }
+
+    return {
+      totalScore,
+      accuracyPercentage,
+      isCorrect,
+      feedbackMessage,
+      ratingLabel,
+      breakdown
+    };
+  }
 }
 
 /**
@@ -393,22 +574,10 @@ export function analyzeProPractices(target, guess, acousticClassOrName = "") {
   let message = "";
   let isWarning = true;
 
-  let contextMatrixFeedback = null;
-  const resolvedClass = resolveAcousticClassKey(acousticClassOrName);
-
-  // Feedback constructivo desde la matriz acústica unificada
-  const matchedBands = ACOUSTIC_MATRIX[resolvedClass] || ACOUSTIC_MATRIX.generic;
-
-  for (const band of matchedBands) {
-    if (guessFreq >= band.minHz && guessFreq < band.maxHz) {
-      if (guessGain > 0.5) {
-        contextMatrixFeedback = `🎧 Impacto en Mezcla (${band.name}): ${band.boostText}`;
-      } else if (guessGain < -0.5) {
-        contextMatrixFeedback = `🎧 Impacto en Mezcla (${band.name}): ${band.cutText}`;
-      }
-      break;
-    }
-  }
+  // NOTE (de-duplication): the band impact text (ACOUSTIC_MATRIX boostText/cutText)
+  // is ALREADY surfaced by the "Efecto de TU filtro en la mezcla" card via
+  // ScoringEngine.getPedagogicalFeedback(). We intentionally do NOT re-inject it
+  // here, otherwise Pro/Hard trials would render the exact same sentence twice.
 
   // Condición 1 (High Pass vs Low Shelf en graves)
   if ((targetType === 'highpass' && guessType === 'lowshelf') || (targetType === 'lowshelf' && guessType === 'highpass')) {
@@ -438,16 +607,6 @@ export function analyzeProPractices(target, guess, acousticClassOrName = "") {
   else {
     message = fallbackMessage;
     isWarning = false;
-  }
-
-  // Inject Context Matrix feedback
-  if (contextMatrixFeedback) {
-    if (message === fallbackMessage) {
-      message = contextMatrixFeedback;
-      isWarning = false;
-    } else {
-      message = `${message} | ${contextMatrixFeedback}`;
-    }
   }
 
   return {

@@ -3,8 +3,8 @@
 > **Documento de traspaso.** Captura el estado exacto del proyecto *Ear Training* para
 > poder reanudar el trabajo en una sesión nueva sin re-descubrir la arquitectura.
 >
-> Última actualización: **2026-09-25** · Autor: sesión Code
-> Estado global: **WORKSTREAMS WS-G … WS-K COMPLETADOS Y VERIFICADOS** ✅
+> Última actualización: **2026-10-12** · Autor: sesión Code (WS-M: Lab didáctico de dinámica · E5 Práctica Guiada sin score · M9 readout PRO, casos *pineados* y cabecera sin Fácil/Normal/Pro)
+> Estado global: **WORKSTREAMS WS-G … WS-M COMPLETADOS Y VERIFICADOS** ✅
 
 ---
 
@@ -22,8 +22,10 @@ node tools/verify_modules.mjs
 - Deploy en **GitHub Pages** → https://github.com/manwell47/ear-training
 - Audio real: **Web Audio API** sobre stems `.ogg` en `Music Ear Training/Oggs/`.
 - Todos los WS recientes (multitrack, personalización por instrumento, perceptibilidad,
-  diferido del game-over, rotación de objetivo, ampliación de teoría de mezcla) están
-  **terminados y validados** con 55 comprobaciones automáticas.
+  diferido del game-over, rotación de objetivo, ampliación de teoría de mezcla, el nuevo
+  **modo Dynamic Range** y su **Lab didáctico** —Teoría/ADSR, scope temporal, casos guiados,
+  sidechain, *Pro Tips* y **Práctica Guiada sin score**—) están **terminados y validados** con
+  **129 comprobaciones automáticas**.
 
 ---
 
@@ -49,9 +51,11 @@ es **histórico**, no se cargan.
 
 | Fichero | Símbolo clave | Línea |
 |---|---|---|
-| **index.html** | `<link … styles_v2.css?v=71>` | 13 |
+| **index.html** | `<link … styles_v2.css?v=80>` | 13 |
 | | botón `#spotlightToggleBtn` (stem-mixer-header) | ~131 |
-| | `<script type="module" src="./src/web/App.js?v=71">` | 692 |
+| | `#dynamicsPanel` / `#compressorCanvas` / `#dynScopeCanvas` / `#dynamicsKnobRow` / `#dynamicsDockSection` | 141 / 157 / 171 / 255 / 371 |
+| | `#theoryPanel` / `#dynCaseVerdict` / `#dynTipsPanel` | 301 / 387 / 388 |
+| | `<script type="module" src="./src/web/App.js?v=80">` | 954 |
 | **styles_v2.css** | `@keyframes ctaTerminalPulse` + `.btn-next-trial.cta-terminal` | ~628–650 |
 | | `#spotlightToggleBtn` / `.active` | ~1486 |
 | | `@keyframes falseFriendsFadeIn` | 332 |
@@ -87,7 +91,19 @@ es **histórico**, no se cargan.
 | | `analyzeProPractices()` | 372 |
 | **src/web/Visualizer_v2.js** | render / drawSpectrum / overlay didáctico | 324 / 546 / 1179 |
 | **src/web/VUMeter.js** | clase `VUMeter` | 1 |
-| **tools/verify_modules.mjs** | verificador autónomo (55 checks) | — |
+| **src/web/dynamics-processor.js** | `class DynamicsProcessor` (DSP del modo) | 46 |
+| **src/web/dynamics-math.js** | `staticGainDb()` / `upwardGainDb()` / `DEFAULT_DYNAMICS_PARAMS` / `DSP_STYLE` | 43 / 71 / 160 / 146 |
+| **src/web/DynamicsEngine.js** | `DYNAMICS_CACHE_VERSION` / `_processorUrl()` | 30 / 84 |
+| **src/web/DynamicsMatrix.js** | `COMPRESSOR_TYPES` / `DYNAMICS_SCENARIOS` / `DYNAMICS_CHALLENGES` | 32 / 317 / 749 |
+| | `DYNAMICS_SIDECHAIN_CASES` / `DYNAMICS_MASTER_TIPS` / `DYNAMICS_THEORY` | 475 / 513 / 651 |
+| **src/web/CompressorUI.js** | `class CompressorUI` (Canvas Pro-C2; solo curva de transferencia) | 45 |
+| **src/web/TooltipController.js** | `hitTestHotspots()` / `HOLD_MS` / `class TooltipController` | 35 / 45 |
+| **src/web/DynamicsLab.js** | `class DynamicsLab` (Explore/Práctica/Case) | 383 |
+| | `describePracticeAchievements()` (checklist cualitativo E5) | 344 |
+| | `DYNAMICS_CASE_STUDIES` / `describeSidechainCases()` / `listExploreScenarios()` | 111 / 329 / 313 |
+| **src/web/TheoryPanel.js** | `ADSR_DEFAULTS` / `adsrVertices()` / `buildAdsrPath()` / `class TheoryPanel` | 18 / 49 / 100 / 109 |
+| **src/web/DynamicsScopeRenderer.js** | `class DynamicsScopeRenderer` (osciloscopio temporal complementario; waveform min/max de entrada con **auto-normalización** + **cinta de GR de alta resolución** (`SCOPE_COLUMNS`=2880, `SCOPE_COLS_PER_FRAME`=16, interpolación del |GR| por frame); lectura **PRO** por **RMS integrado** (`SCOPE_RMS_SECONDS`) + **máximos congelados** (`maxPeakDb` de nivel y `maxGrDb` de reducción, sin decaimiento) y **dígitos refrescados** solo a `SCOPE_TEXT_HZ`; rejilla de nivel en **fracciones de pantalla fijas** vía `_updateMeter()`/`dispInDb`; helpers `ampToDb`/`dbToAmp`/`peakToDb`/`rmsAmp`/`rmsToDb`/`levelToY`/`ampToY`/`grToY`/`pushHistory`) | 220 |
+| **tools/verify_modules.mjs** | verificador autónomo (129 checks) | — |
 
 ---
 
@@ -140,6 +156,116 @@ es **histórico**, no se cargan.
 - **WS-J1..J6**: personalización completa por instrumento (clases dedicadas + bancos +
   texto de lección para orquesta/Decca, toms, teclados/piano, maderas y metales).
 
+### WS-L — Modo Dynamic Range (nuevo módulo completo)
+Híbrido **Lab de exploración + retos puntuables** sobre la app web viva, con DSP propio
+(el `DynamicsCompressorNode` nativo no hace upward compression, sidechain externo, release
+dependiente de programa ni carácter por tipo).
+- **W1/W1b — DSP** ([`src/web/dynamics-processor.js`](src/web/dynamics-processor.js:46) +
+  [`src/web/dynamics-math.js`](src/web/dynamics-math.js:1)): downward + upward, knee
+  cuadrático suave, attack/release/hold, release program-dependent, makeup/auto-gain, mix
+  dry/wet, detector peak/RMS, feed-forward/feedback, stereo-link, sidechain externo y
+  **coloración armónica gated por el switch Color**. Telemetría por `port.postMessage`
+  (~47-48 Hz). 5 tipos de carácter (`vca`/`fet`/`opto`/`varimu`/`bus`) centralizados en `DSP_STYLE`.
+- **W2/W2b — Motor y enrutado** ([`src/web/DynamicsEngine.js`](src/web/DynamicsEngine.js:35),
+  [`src/web/AudioEngine.js`](src/web/AudioEngine.js:679)): `buildDynamicsGraph()` /
+  `setDynamicsConfig()` / `teardownDynamics()`, compresor insertado **solo** en la ruta
+  auditada (`processedDest = dynNode || masterGain`) y tap de sidechain (`_wireDynamicsSidechain`,
+  se omite si el sidechain coincide con el stem objetivo).
+- **W3/W3b — UI y markup** ([`src/web/CompressorUI.js`](src/web/CompressorUI.js:45),
+  `index.html`): renderer Canvas 2D estilo FabFilter Pro-C2 (grid, unidad, knee, curva,
+  handles `threshold`/`ratio`/`knee`, operating dot, medidor de reducción); panel
+  `#dynamicsPanel` + `#compressorCanvas` + `#dynamicsKnobRow` + `#dynamicsDockSection`.
+- **W4 — Ayuda** ([`src/web/TooltipController.js`](src/web/TooltipController.js:45)): mantener
+  el ratón quieto **1 s** (`HOLD_MS=1000`, tolerancia `6 px`) muestra la explicación del
+  control (`DYNAMICS_HELP`, 20 claves, cubriendo los 14 `data-help` del HTML + hotspots del canvas).
+- **W5 — Contenido** ([`src/web/DynamicsMatrix.js`](src/web/DynamicsMatrix.js:1)): 5 tipos de
+  compresor, 6 buses, 10 escenarios (incl. sidechain kick→bajo `bass_duck_kick`), lecciones y
+  10 retos con `weights`.
+- **W6 — Orquestación** ([`src/web/DynamicsLab.js`](src/web/DynamicsLab.js:253)): Explore /
+  Challenge / Case, con desbloqueo curricular de controles; módulo **sin DOM** (importable).
+- **W7 — Integración** ([`src/web/App.js`](src/web/App.js:465)): tarjeta Dynamic Range
+  desbloqueada, estados `DYNAMICS_MODE_SELECT` + `DYNAMICS_LAB`, swap dock/canvas,
+  `activeGameMode='dynamics'`.
+- **W8 — Puntuación** ([`src/web/ScoringEngine.js`](src/web/ScoringEngine.js:343)):
+  `evaluateDynamics()` con tolerancias continuas (abs dB/mix/hold, rel ratios, log2
+  attack/release), puertas categóricas exactas (`style`, `sidechain`) que impiden un veredicto
+  "correcto", y componente sintético `direction` (un ajuste solo-down nunca puntúa 100 % en un
+  escenario upward).
+- **W9 — Verificación**: `tools/verify_modules.mjs` gana la sección "3) DYNAMIC RANGE"
+  (tipos, escenarios, sidechain, función de transferencia, sanitizeParams, hotspots y scoring
+  funcional) → hoy **129 checks ALL PASS** tras ampliarla en WS-M (E3 −14, E5 +2, los 2 invariantes de
+  cache-buster, los **12 checks del medidor PRO del scope** y el check de la **cinta de GR de alta
+  resolución**, §6/§4).
+- **Diferido**: *lookahead* (a un tier posterior, por decisión de diseño). El color por tipo es
+  un **switch `Color` independiente** para estudiar primero la curva limpia.
+
+### WS-M — Lab didáctico de dinámica (Teoría · Scope · Casos · Sidechain · Pro Tips)
+Ampliación del modo Dynamic Range hacia un laboratorio didáctico completo, **sin romper** la curva
+limpia ni la puntuación de WS-L.
+- **M1 — Teoría + ADSR** ([`src/web/TheoryPanel.js`](src/web/TheoryPanel.js:109) y `DYNAMICS_THEORY`
+  en [`src/web/DynamicsMatrix.js`](src/web/DynamicsMatrix.js:651)): 6 bloques teóricos; el bloque 2
+  pinta una **envolvente ADSR interactiva** (ataque/release) con geometría pura exportada
+  (`ADSR_DEFAULTS`, `adsrVertices()`, `buildAdsrPath()`) verificable sin DOM. Panel `#theoryPanel`.
+- **M2 — Gráfica temporal complementaria** (dedicada en
+  [`src/web/DynamicsScopeRenderer.js`](src/web/DynamicsScopeRenderer.js:123), montada por
+  [`App._mountDynamicsScope()`](src/web/App.js:589) sobre `#dynScopeCanvas`): gráfica estilo FabFilter C2
+  **separada** de la curva de transferencia —dibuja la **evolución de la envolvente de la señal de
+  entrada** en dBFS sobre un eje temporal y superpone la **reducción de ganancia** como cinta
+  diferenciada, ambas **sincronizadas** sobre el mismo eje de tiempo. El renderer lee el *waveform*
+  de los analizadores del `AudioEngine` (`getPreTimeDomainData`→`getTimeDomainData`) y recibe la
+  telemetría (`grDb`) por `setTelemetry()`; la curva de transferencia de `CompressorUI` queda
+  **intacta**. Sustituye a la vieja tira `#dynScopeWrap`.
+- **M3 — Espectro dry/wet** (*retirado*): [`src/web/DynamicsSpectrumRenderer.js`](src/web/DynamicsSpectrumRenderer.js)
+  se creó y verificó (ejes puros `SPECTRUM_RANGE`/`frequencyToX()`/`sampleEnvelope()`), pero el
+  pivote a dominio temporal (M2) lo dejó sin uso; se **movió a `legacy/DynamicsSpectrumRenderer.js`**
+  y su sección de verificación del espectro se retiró. No queda código muerto en `src/web`.
+- **M4 — Casos guiados** ([`src/web/DynamicsLab.js`](src/web/DynamicsLab.js:111),
+  `DYNAMICS_CASE_STUDIES`): 10 casos con `scenarioId`, `lessonId`, `checks` y `tips`, con
+  autocorrección (`checkCase`) y revelado de referencia (`revealCaseTarget`).
+- **M5 — Sidechain** (`DYNAMICS_SIDECHAIN_CASES`, validados por `describeSidechainCases()`): 3 rutas
+  reales de `rock_band_session` (bajo←bombo, guitarras←voz, teclados←voz) como
+  `sessionId`+`targetStemId`+`keyStemId`.
+- **M6 — Pro Tips** (`DYNAMICS_MASTER_TIPS`, panel `#dynTipsPanel`): 12 consejos de mezcla (método,
+  envolvente, umbral/ratio, codo, tipos, ganancia, paralelo, sidechain y errores).
+- **M7 — Integración y verificación** ([`src/web/App.js`](src/web/App.js:15)): imports y hashes
+  `?v=80`; la sección de verificación se amplía a **129 checks ALL PASS** (helpers puros del scope
+  + medidor PRO, geometría ADSR, casos, sidechain, `DYNAMICS_THEORY` y el checklist cualitativo de E5).
+- **M8 — Práctica Guiada sin score (E5)** ([`src/web/App.js`](src/web/App.js:1049),
+  [`src/web/DynamicsLab.js`](src/web/DynamicsLab.js:344)): el sub-modo de retos puntuables pasa a
+  **práctica guiada sin score ni vidas**. `_setGameHudVisible(false)` oculta score/rango/stage, vidas
+  y lifeline durante todo el lab; `submitChallenge()` emite `achievements` (helper puro
+  `describePracticeAchievements()`, mapea `breakdown` → `ok/close/miss`) y la UI muestra un **checklist
+  cualitativo** («Logros de este paso» ✓/≈/✗) en vez de puntos, con el `(NN%)` eliminado del texto.
+  Etiquetas de-gamificadas: "Reto" → "Paso" y tarjeta "Práctica Guiada".
+- **M9 — Readout PRO · práctica guiada *pineada* · limpieza de cabecera** (WS-M cont.,
+  [`src/web/DynamicsScopeRenderer.js`](src/web/DynamicsScopeRenderer.js:470) y
+  [`src/web/App.js`](src/web/App.js:962)):
+  (a) **Meter PRO (RMS + máximo congelado + refresco limitado)**: el readout ya no lee el pico crudo por frame.
+  `_updateMeter(blockMs, blockPeakDb, dt)` **integra el RMS** de la señal (media cuadrática con constante
+  de tiempo `SCOPE_RMS_SECONDS` ≈ 300 ms —la lectura "media" de un medidor comercial—) y **congela el pico máximo alcanzado**
+  (`maxPeakDb`, **enganchado y sin decaimiento**, como referencia didáctica estable);
+  toda la balística es **dt-dependiente** (idéntica a 30/60/144 fps) y los **dígitos se refrescan a
+  `SCOPE_TEXT_HZ`** (6 Hz, no 60) para que el número se quede quieto mientras la onda anima fluida.
+  `_drawReadout()` pinta `ENTRADA RMS` y, **justo debajo**, el `MÁX` congelado; en la **columna derecha**, `GR` y su propio **máximo congelado** `MÁX GR` (`maxGrDb`, sin decaimiento) para fijar el *make-up*, más la etiqueta `auto ×N`. La rejilla de niveles se ancla a **fracciones de pantalla fijas** (`amp` 1/0.5/0.25): antes se dividía por el auto-gain `g`, de modo que las líneas y sus números se aplastaban y solapaban al subir la normalización.
+  (b) **Casos de estudio *pineados***: `_dynCaseUnlockedKeys()` deriva el set editable de los `checks`
+  del caso activo (mismo contrato que `unlocked` en los retos) y `_applyDynamicsUnlockState()` **desactiva**
+  los controles no relevantes; al cargar el caso, `CASE_LOADED` nombra la pista asignada, sincroniza la
+  cabecera (`_syncHeaderSource`) y **fija la Fuente** (`_lockDynamicsSource(true)` →
+  `.custom-select-wrapper.source-locked` + `#sourceSelect.disabled`); `exitDynamicsLab()` la libera.
+  (c) **Cabecera en modo Dynamics**: el selector **Fácil/Normal/Pro** (`#difficultyGroup`) se **oculta**
+  al entrar (`startDynamicsMode`) y se restaura al salir.
+- **M10 — Alta resolución de la cinta de reducción de ganancia (amarilla)** (WS-M cont.,
+  [`src/web/DynamicsScopeRenderer.js`](src/web/DynamicsScopeRenderer.js:407)): la cinta de «Reducción»
+  ya no se dibuja como una **escalera de pocos niveles**. La causa era que `_advanceStrip()` escribía
+  el **mismo** `grDb` una vez por cada columna añadida (`SCOPE_COLS_PER_FRAME`=4 → plateaus de 4
+  columnas = peldaños visibles). Ahora la resolución horizontal sube **4×** (`SCOPE_COLUMNS` 720 →
+  **2880**) con las columnas por frame escaladas en la misma proporción (`SCOPE_COLS_PER_FRAME` 4 →
+  **16**, preservando la ventana temporal ~3 s) y `_advanceStrip()` **interpola el |GR|** a lo largo de
+  las columnas añadidas (estado `_lastGrCol`: valor previo → actual), produciendo un borde continuo en
+  lugar de escalones. `reset()` reinicia `_lastGrCol`. Verificación: check **«cinta GR: alta
+  resolución (interpola varios niveles por frame)»** (una tira recién avanzada contiene ≥ perFrame/2
+  niveles distintos, no un único escalón).
+
 ---
 
 ## 4. Las 24 clases acústicas
@@ -181,8 +307,28 @@ Hace, en un sandbox ESM temporal:
 2. **Invariantes** WS-I/J/K: 24 clases, bancos/lecciones/alias de las 6 nuevas, rotación de
    objetivo, banda 80 Hz–14 kHz, boost multitrack (media sube y techo ≤14 dB), flags del
    trainer.
+3. **Invariantes DYNAMIC RANGE (WS-L)**: 5 tipos con `engine == DSP_STYLE[x]` (sin drift),
+   cobertura de escenarios por bus, referencias `sourceId`/`target`/`sidechain`
+   (`{sessionId, sourceStemId}`) válidas contra `AUDIO_SOURCES`/`MULTITRACK_SESSIONS`, puntos
+   conocidos de la función de transferencia (hard-knee `-10 dB @ T=-20, R=4` → `-7.5 dB`;
+   `upwardGainDb` espejo exacto), clamps de `sanitizeParams`, `hitTestHotspots`, `HOLD_MS=1000`,
+   cobertura de `DYNAMICS_HELP` sobre los 15 `data-help`, y scoring funcional de `evaluateDynamics`.
+4. **Invariantes del Lab didáctico (WS-M)**: geometría ADSR (`adsrVertices` abre en `baseY`, pico
+   en `topY` y cierra en `baseY`; más ataque/release ⇒ más ancho; `buildAdsrPath` = 1 `M` + 4 `L`),
+   10 `DYNAMICS_CASE_STUDIES` con `scenarioId`/`lessonId`/`checks` válidos, 3 presets de sidechain
+   de `rock_band_session`, `DYNAMICS_THEORY` con ≥6 secciones y una ADSR, y `describePracticeAchievements`
+   (E5: checklist cualitativo que traduce el `breakdown` a `ok/close/miss` sin mostrar números).
+   Y el **medidor PRO del scope** (`DynamicsScopeRenderer.js`): helpers puros
+   (`ampToDb`/`dbToAmp`/`peakToDb`/`rmsAmp`/`rmsToDb`/`levelToY`/`ampToY`/`grToY`/`pushHistory`),
+   constantes de balística, construcción sin DOM/engine, **convergencia del RMS integrado**
+   (`SCOPE_RMS_SECONDS`), **máximo congelado** (`maxPeakDb`, no decae) y **balística dt-dependiente**
+   (idéntica a 60 vs 144 fps) + contrato del readout (`ENTRADA RMS`/`MÁX`/`MÁX GR`). Y la **cinta GR de
+   alta resolución**: `SCOPE_COLUMNS`=2880 / `SCOPE_COLS_PER_FRAME`=16 y la **interpolación del |GR|**
+   entre columnas (una tira recién avanzada contiene varios niveles, no un único escalón).
 
-Salida esperada: **`ALL PASS (55 checks)`** y exit code `0`.
+Salida esperada: **`ALL PASS (129 checks)`** y exit code `0`.
+
+4. **Invariante de UX (consistencia cabecera/fuente)**: el selector de fuente de la cabecera (`#sourceSelect` + `.custom-select-header` dentro de `#sourceDropdownWrapper`) **debe nombrar la fuente que el lab acaba de cargar**. Cada carga de escenario (`_onDynamicsScenario`) y cada `_loadDynamicsForMode` (Explore/Challenge/Case) llaman a `App._syncHeaderSource(sourceId, sourceName)`, que añade la opción si falta, fija `select.value`, actualiza `store.activeTrackId`, el texto del header y marca la `.custom-option` activa. Nota: fijar `select.value` por código **no** dispara el listener `change` (que recarga el EQ), por lo que la sincronización es puramente visual/estado.
 
 ### Live HTTP (con el server arriba)
 ```cmd
@@ -191,8 +337,8 @@ curl -s -o NUL -w "%{http_code}\n" http://localhost:8080/src/web/App.js
 Comprobar 200 en cada módulo y presencia de marcadores en el HTML/CSS.
 
 ### Regla de cache-busting
-Los `import` internos usan `?v=70`; `index.html` carga `App.js?v=71` y
-`styles_v2.css?v=71`. **Al publicar en Pages, sube todas las cadenas `?v=N` juntas**
+Los `import` internos y `index.html` comparten **el mismo `?v=80`** (`App.js?v=80`,
+`styles_v2.css?v=80`). **Al publicar en Pages, sube todas las cadenas `?v=N` juntas**
 (código + HTML) para evitar versiones mixtas. Busca con:
 ```cmd
 findstr /s /r /c:"?v=[0-9][0-9]*" index.html src\web\*.js
@@ -216,13 +362,19 @@ findstr /s /r /c:"?v=[0-9][0-9]*" index.html src\web\*.js
 
 ## 8. Backlog / próximos pasos
 
-1. **Limpieza legacy**: retirar `src/web/App_v4*.js` y `legacy/` una vez confirmado que nada
-   los referencia (búsqueda de imports).
+1. ~~**Limpieza legacy**~~ ✅ hecho: `src/web/App_v4*.js` y los scratch (`tmp_verify/`,
+   `replacement.txt`) ya no están en el árbol activo; los históricos viven en `legacy/`.
 2. **Regresión manual** contra [`plans/REPAIR_PLAN.md`](plans/REPAIR_PLAN.md).
-3. **Publicación**: antes del push a Pages, alinear todos los `?v=N`.
-4. Opcional: extender `tools/verify_modules.mjs` con comprobaciones del motor de audio
+3. ~~**Publicación — alinear `?v=N`**~~ ✅ hecho: todo unificado a **`?v=80`**.
+4. ~~**Destino de `DynamicsSpectrumRenderer.js`**~~ ✅ hecho: **retirado** (el *scope* temporal M2
+   lo sustituye). El módulo vive ahora en `legacy/DynamicsSpectrumRenderer.js` y su sección de
+   verificación del espectro se eliminó. Con E5 (que añade 2 checks del checklist cualitativo), los
+   2 invariantes de cache-buster, los 12 del medidor PRO del scope y el check de la **cinta de GR de
+   alta resolución**, el total queda en **129 checks**.
+5. Opcional: extender `tools/verify_modules.mjs` con comprobaciones del motor de audio
    (routing A/B/C, spotlight), hoy difíciles por depender del DOM/WebAudio.
-5. Opcional: más clases acústicas / más escenarios por banco si se pide ampliar la DB.
+6. Opcional: más clases acústicas / más escenarios por banco si se pide ampliar la DB.
+7. Dynamic Range: *lookahead* sigue diferido (tier posterior por decisión de diseño).
 
 ---
 

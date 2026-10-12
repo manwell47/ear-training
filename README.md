@@ -113,7 +113,8 @@ Getting the project running locally is incredibly simple. There are no `npm inst
 - [x] High-fidelity Canvas RTA visualizer
 - [x] Scoring engine with RPG rank progression
 - [x] Multitrack stem loading and mixing faders
-- [ ] Advanced dynamic range compression training
+- [x] Advanced dynamic range compression training
+      (Dynamics Lab: upward/downward compression, 5 compressor types, sidechain, Pro-C2 style UI)
 - [ ] User account saving and cloud progress sync
 - [ ] Mobile/Tablet responsive layout optimizations
 

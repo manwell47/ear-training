@@ -7,10 +7,12 @@ const server = http.createServer((req, res) => {
   // Decode the URL so spaces and special characters are mapped to real filesystem names
   let decodedUrl = decodeURIComponent(req.url);
   let filePath = '.' + decodedUrl;
-  if (filePath === './') filePath = './index.html';
 
-  // Clean query string
+  // Clean query string first so "/?t=..." still resolves to index.html
+  // (previously the root mapping ran before stripping the query, so any
+  //  cache-busted request to "/" tried to read the "./" directory → 500).
   filePath = filePath.split('?')[0];
+  if (filePath === './') filePath = './index.html';
 
   const extname = path.extname(filePath);
   let contentType = 'text/html';
@@ -53,6 +55,11 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(8080, () => {
-  console.log('Server running on port 8080 with NO CACHE');
+// Port is configurable so the app can be served on an alternate port when the
+// default one is already taken (e.g. Steam's web helper binds 127.0.0.1:8080).
+// Default remains 8080 to preserve existing workflows.
+const PORT = Number(process.env.PORT) || 8080;
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT} with NO CACHE -> http://localhost:${PORT}/`);
 });
