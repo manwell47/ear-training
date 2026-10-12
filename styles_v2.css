@@ -217,17 +217,53 @@ body {
   text-shadow: 0 0 8px rgba(0, 210, 255, 0.3);
 }
 
+/* The <input> BOX is deliberately taller than the painted track so the whole
+   slider is easy to grab. A 4px-tall input was almost impossible to drag with a
+   pointer, which made every knob except the (big) canvas handle read as
+   "frozen" — in every sub-mode, including Explorar. The thin look is preserved
+   by painting the track inside the larger hit area via the vendor pseudo-
+   elements below. */
 .surgical-slider {
   -webkit-appearance: none;
+  appearance: none;
   width: 100%;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.surgical-slider::-webkit-slider-runnable-track {
   height: 4px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 2px;
-  outline: none;
+}
+
+.surgical-slider::-moz-range-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
 }
 
 .surgical-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  /* (4px track - 14px thumb) / 2 => centred on the track */
+  border-radius: 50%;
+  background: #00d2ff;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(0, 210, 255, 0.5);
+  border: 2px solid #fff;
+}
+
+.surgical-slider::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -235,6 +271,59 @@ body {
   cursor: pointer;
   box-shadow: 0 0 10px rgba(0, 210, 255, 0.5);
   border: 2px solid #fff;
+}
+
+/* ─── LOCKED CONTROLS (progressive disclosure) ──────────────────────────────
+   Guiada (Práctica/Casos) only enables the controls its current step grades.
+   Without this block a disabled slider looked exactly like a live one, so the
+   gated parameters read as "frozen" instead of "locked". */
+.surgical-slider:disabled {
+  opacity: 0.28;
+  filter: grayscale(1);
+  cursor: not-allowed;
+}
+
+.surgical-slider:disabled::-webkit-slider-thumb,
+.surgical-slider:disabled::-moz-range-thumb {
+  background: #4b5563;
+  border-color: #6b7280;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.surgical-slider:disabled::-webkit-slider-runnable-track,
+.surgical-slider:disabled::-moz-range-track {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.surgical-select:disabled,
+.dyn-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dyn-chip:disabled:hover {
+  border-color: var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.surgical-knob-group.is-locked,
+.dyn-field.is-locked,
+.dyn-switch.is-locked,
+.dyn-type-chips.is-locked {
+  opacity: 0.55;
+}
+
+.surgical-knob-group.is-locked .surgical-label span:first-child::after,
+.dyn-field.is-locked>span::after,
+.dyn-switch.is-locked>span::after {
+  content: ' 🔒';
+  font-size: 0.6rem;
+}
+
+.surgical-knob-group.is-locked .surgical-value {
+  color: #6b7280;
+  text-shadow: none;
 }
 
 .surgical-select {

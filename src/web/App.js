@@ -4,20 +4,20 @@
  * Manages CSS Grid workspace layout, onboarding overlay, mode switching, draggable Canvas node handle in Pro mode, and Fila 3 integrated pedagogical results.
  */
 
-import { AudioEngine } from './AudioEngine.js?v=80';
-import { Visualizer } from './Visualizer_v2.js?v=80';
-import { GameLoopManager, GAME_STATES } from './GameLoopManager.js?v=80';
-import { AUDIO_SOURCES, MULTITRACK_SESSIONS, pickRandomTargetStem } from './AudioResourceManager.js?v=80';
-import { TrainingManager } from './TrainingManager.js?v=80';
-import { ScoringEngine, checkFilterFalseFriends, analyzeProPractices } from './ScoringEngine.js?v=80';
-import { resolveAcousticClassKey } from './AcousticMatrix.js?v=80';
-import { VUMeter } from './VUMeter.js?v=80';
-import { DynamicsLab, DYNAMICS_LAB_MODES, DYNAMICS_LAB_EVENTS, listExploreScenarios, describeSidechainCases } from './DynamicsLab.js?v=80';
-import { DYNAMICS_MASTER_TIPS } from './DynamicsMatrix.js?v=80';
-import { CompressorUI } from './CompressorUI.js?v=80';
-import { TooltipController } from './TooltipController.js?v=80';
-import { TheoryPanel } from './TheoryPanel.js?v=80';
-import { DynamicsScopeRenderer } from './DynamicsScopeRenderer.js?v=80';
+import { AudioEngine } from './AudioEngine.js?v=82';
+import { Visualizer } from './Visualizer_v2.js?v=82';
+import { GameLoopManager, GAME_STATES } from './GameLoopManager.js?v=82';
+import { AUDIO_SOURCES, MULTITRACK_SESSIONS, pickRandomTargetStem } from './AudioResourceManager.js?v=82';
+import { TrainingManager } from './TrainingManager.js?v=82';
+import { ScoringEngine, checkFilterFalseFriends, analyzeProPractices } from './ScoringEngine.js?v=82';
+import { resolveAcousticClassKey } from './AcousticMatrix.js?v=82';
+import { VUMeter } from './VUMeter.js?v=82';
+import { DynamicsLab, DYNAMICS_LAB_MODES, DYNAMICS_LAB_EVENTS, listExploreScenarios, describeSidechainCases } from './DynamicsLab.js?v=82';
+import { DYNAMICS_MASTER_TIPS } from './DynamicsMatrix.js?v=82';
+import { CompressorUI } from './CompressorUI.js?v=82';
+import { TooltipController } from './TooltipController.js?v=82';
+import { TheoryPanel } from './TheoryPanel.js?v=82';
+import { DynamicsScopeRenderer } from './DynamicsScopeRenderer.js?v=82';
 
 export class App {
   constructor() {
@@ -707,7 +707,10 @@ export class App {
       this._dynAwaitingNext = false;
       this._clearCaseVerdict();
       const ch = payload.challenge || {};
-      this._setDynamicsPrompt(`Paso ${payload.index + 1}/${payload.total}: ${ch.title || ''} — ${ch.brief || ''}`);
+      // A gated step must SAY which controls it opens, otherwise the dimmed knobs
+      // read as a broken panel rather than as progressive disclosure.
+      const hint = Array.isArray(ch.unlocked) ? this._dynLockHint(payload.unlocked) : '';
+      this._setDynamicsPrompt(`Paso ${payload.index + 1}/${payload.total}: ${ch.title || ''} — ${ch.brief || ''}${hint}`);
       const submit = document.getElementById('dynSubmitBtn');
       if (submit) {
         submit.textContent = '🎯 Enviar Ajuste';
@@ -727,10 +730,13 @@ export class App {
       const srcName = scen.sourceName || scen.sourceId || '';
       // Perceptible gating: name the designated track and pin the Fuente picker to
       // it, so the guided recipe can only be solved with THAT source.
+      const caseKeys = this._dynCaseUnlockedKeys(lab);
+      const hint = caseKeys ? this._dynLockHint(Array.from(caseKeys)) : '';
       this._setDynamicsPrompt(
         `Caso: ${cs.title || ''} — ${cs.goal || ''}`
         + (srcName ? ` Pista asignada: ${srcName} (fija para este ejercicio).` : '')
         + ' Ajusta solo los controles activos y pulsa "Comprobar receta".'
+        + hint
       );
       this._syncHeaderSource(scen.sourceId, scen.sourceName);
       this._lockDynamicsSource(true);
@@ -760,10 +766,23 @@ export class App {
     if (!lab || this._dynControlsBound) return;
     this._dynControlsBound = true;
 
+    // Idempotent binding. Re-entering the lab (or switching sub-mode) re-runs
+    // this method, and the panel DOM is reused: a plain addEventListener would
+    // stack a SECOND listener on every element, so a stale listener could push
+    // the OLD lab's full parameter set back on each drag (the knobs then read
+    // as "frozen"). We keep exactly one handler per element+event and replace
+    // it on every bind.
+    const bindEvt = (el, type, handler) => {
+      if (!el) return;
+      const key = `_dynOn${type}`;
+      if (el[key]) el.removeEventListener(type, el[key]);
+      el[key] = handler;
+      el.addEventListener(type, handler);
+    };
+
     this._dynControlDefs().forEach(def => {
       const input = document.getElementById(def.id);
-      if (!input) return;
-      input.addEventListener('input', () => {
+      bindEvt(input, 'input', () => {
         const raw = parseFloat(input.value);
         const val = def.uiScale ? raw / def.uiScale : raw;
         lab.applyParams({ [def.key]: val });
@@ -771,37 +790,37 @@ export class App {
     });
 
     document.querySelectorAll('#dynTypeChips .dyn-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
+      bindEvt(chip, 'click', () => {
         if (chip.disabled) return;
         lab.setType(chip.getAttribute('data-dyn-style'));
       });
     });
 
     const det = document.getElementById('dynDetectorSelect');
-    if (det) det.addEventListener('change', () => lab.applyParams({ detector: det.value }));
+    bindEvt(det, 'change', () => lab.applyParams({ detector: det.value }));
 
     const fb = document.getElementById('dynFeedbackSelect');
-    if (fb) fb.addEventListener('change', () => lab.applyParams({ feedback: fb.value === 'feedback' }));
+    bindEvt(fb, 'change', () => lab.applyParams({ feedback: fb.value === 'feedback' }));
 
     const modeSel = document.getElementById('dynModeSelect');
-    if (modeSel) modeSel.addEventListener('change', () => {
+    bindEvt(modeSel, 'change', () => {
       const next = modeSel.value === 'expand' ? 'expand' : 'compress';
       lab.applyParams({ mode: next });
       if (this.compressorUI) this.compressorUI.setMode(next);
     });
 
     const upEn = document.getElementById('dynUpwardEnable');
-    if (upEn) upEn.addEventListener('change', () => lab.applyParams({ upwardEnabled: upEn.checked }));
+    bindEvt(upEn, 'change', () => lab.applyParams({ upwardEnabled: upEn.checked }));
 
     const color = document.getElementById('dynColorSwitch');
-    if (color) color.addEventListener('click', () => lab.setColor(!lab.colorOn));
+    bindEvt(color, 'click', () => lab.setColor(!lab.colorOn));
 
     const auto = document.getElementById('dynAutoGainBtn');
-    if (auto) auto.addEventListener('click', () => lab.applyParams({ autoGain: !lab.getParams().autoGain }));
+    bindEvt(auto, 'click', () => lab.applyParams({ autoGain: !lab.getParams().autoGain }));
 
     const help = document.getElementById('btnDynHelp');
     if (help && this.tooltipController) {
-      help.addEventListener('click', () => {
+      bindEvt(help, 'click', () => {
         const on = !this.tooltipController.teaching;
         this.tooltipController.setTeaching(on);
         help.setAttribute('aria-pressed', String(on));
@@ -809,7 +828,7 @@ export class App {
     }
 
     const bypass = document.getElementById('dynBypassBtn');
-    if (bypass) bypass.addEventListener('click', () => {
+    bindEvt(bypass, 'click', () => {
       // Toggle only; BYPASS_CHANGED reflects the chrome (dock + header DYN OFF/ON).
       lab.setBypass(!lab.bypass);
     });
@@ -819,7 +838,7 @@ export class App {
     const tipsPanel = document.getElementById('dynTipsPanel');
     if (tipsBtn && tipsPanel) {
       this._renderDynamicsTips();
-      tipsBtn.addEventListener('click', () => {
+      bindEvt(tipsBtn, 'click', () => {
         const willOpen = tipsPanel.classList.contains('hidden');
         tipsPanel.classList.toggle('hidden', !willOpen);
         tipsPanel.setAttribute('aria-hidden', String(!willOpen));
@@ -829,7 +848,7 @@ export class App {
     }
 
     const sidechain = document.getElementById('dynSidechainSelect');
-    if (sidechain) sidechain.addEventListener('change', () => {
+    bindEvt(sidechain, 'change', () => {
       const val = sidechain.value;
       this._dynSidechainValue = val;
       if (!val) {
@@ -860,13 +879,13 @@ export class App {
     });
 
     const revealBtn = document.getElementById('dynRevealBtn');
-    if (revealBtn) revealBtn.addEventListener('click', () => {
+    bindEvt(revealBtn, 'click', () => {
       const target = lab.revealCaseTarget();
       if (target) this._renderCaseReference(target);
     });
 
     const submit = document.getElementById('dynSubmitBtn');
-    if (submit) submit.addEventListener('click', () => {
+    bindEvt(submit, 'click', () => {
       if (this._dynAwaitingNext) {
         this._dynAwaitingNext = false;
         submit.textContent = '🎯 Enviar Ajuste';
@@ -912,6 +931,41 @@ export class App {
       upwardThresholdDb: 'upwardThreshold'
     };
     return map[key] || key;
+  }
+
+  /** Human (Spanish) label for a curriculum control key; used by the lock hints. */
+  _dynControlLabel(key) {
+    const labels = {
+      threshold: 'umbral',
+      ratio: 'ratio',
+      knee: 'codo',
+      attack: 'ataque',
+      release: 'release',
+      hold: 'hold',
+      makeupDb: 'makeup',
+      mix: 'mix',
+      style: 'tipo',
+      sidechain: 'sidechain',
+      mode: 'modo',
+      detector: 'detector',
+      feedback: 'topología',
+      upwardEnabled: 'upward',
+      upwardThresholdDb: 'umbral ↑',
+      upwardRatio: 'ratio ↑'
+    };
+    return labels[key] || key;
+  }
+
+  /**
+   * Explains — in the dock — WHICH controls the current guided step unlocked, so
+   * the dimmed/locked ones are understood as progressive disclosure, not a bug.
+   * @param {Array<string>} keys unlocked curriculum control keys
+   * @returns {string} an appended sentence, or '' when there is nothing to say
+   */
+  _dynLockHint(keys) {
+    if (!Array.isArray(keys) || !keys.length) return '';
+    const list = keys.map(k => this._dynControlLabel(k)).join(', ');
+    return ` 🔓 Controles activos: ${list}. Los bloqueados (🔒) se abren al avanzar.`;
   }
 
   /** Pushes the Lab's parameter state into the DOM controls. */
@@ -981,31 +1035,53 @@ export class App {
       return true;
     };
     const upOn = !!lab.getParams().upwardEnabled;
+    const LOCKED = 'Bloqueado en este paso: se activa más adelante.';
+
+    /**
+     * Applies the gate to one control AND marks it visually locked. A locked
+     * control must look locked (dimmed + 🔒 + tooltip); otherwise the panel
+     * appears "frozen" instead of didactically gated.
+     */
+    const gate = (el, ok, hostSelector) => {
+      if (!el) return;
+      el.disabled = !ok;
+      el.title = ok ? '' : LOCKED;
+      el.setAttribute('aria-disabled', String(!ok));
+      const host = hostSelector
+        ? el.closest(hostSelector)
+        : (el.closest('.surgical-knob-group') || el.closest('.dyn-field') || el.closest('.dyn-switch'));
+      if (host) host.classList.toggle('is-locked', !ok);
+    };
 
     this._dynControlDefs().forEach(def => {
       const input = document.getElementById(def.id);
       if (!input) return;
       let ok = unlocked(this._dynCurriculumKey(def.key));
       if (def.key === 'upwardThresholdDb' || def.key === 'upwardRatio') ok = ok && upOn;
-      input.disabled = !ok;
+      gate(input, ok, '.surgical-knob-group');
     });
 
-    document.querySelectorAll('#dynTypeChips .dyn-chip').forEach(c => { c.disabled = !unlocked('style'); });
+    const styleOk = unlocked('style');
+    document.querySelectorAll('#dynTypeChips .dyn-chip').forEach(c => {
+      c.disabled = !styleOk;
+      c.title = styleOk ? '' : LOCKED;
+    });
+    const chips = document.getElementById('dynTypeChips');
+    if (chips) chips.classList.toggle('is-locked', !styleOk);
 
-    const det = document.getElementById('dynDetectorSelect');
-    if (det) det.disabled = !unlocked('detector');
-    const fb = document.getElementById('dynFeedbackSelect');
-    if (fb) fb.disabled = !unlocked('feedback');
-    const modeSel = document.getElementById('dynModeSelect');
-    if (modeSel) modeSel.disabled = !unlocked('mode');
-    const sc = document.getElementById('dynSidechainSelect');
-    if (sc) sc.disabled = !unlocked('sidechain');
-    const upEn = document.getElementById('dynUpwardEnable');
-    if (upEn) upEn.disabled = !unlocked('upwardEnabled');
+    gate(document.getElementById('dynDetectorSelect'), unlocked('detector'));
+    gate(document.getElementById('dynFeedbackSelect'), unlocked('feedback'));
+    gate(document.getElementById('dynModeSelect'), unlocked('mode'));
+    gate(document.getElementById('dynSidechainSelect'), unlocked('sidechain'));
+    gate(document.getElementById('dynUpwardEnable'), unlocked('upwardEnabled'));
 
     if (this.compressorUI) {
-      // The canvas only ever edits threshold + ratio.
-      this.compressorUI.setInteractive(unlocked('threshold') || unlocked('ratio'));
+      // The canvas only ever edits threshold + ratio, and it must honour the SAME
+      // gate as the knobs: a locked ratio could otherwise still be dragged.
+      this.compressorUI.setInteractive({
+        threshold: unlocked('threshold'),
+        ratio: unlocked('ratio')
+      });
     }
   }
 

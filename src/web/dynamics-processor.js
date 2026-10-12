@@ -36,7 +36,7 @@ import {
     computeGainDb,
     colorShape,
     clamp
-} from './dynamics-math.js?v=80';
+} from './dynamics-math.js?v=82';
 
 /** Emit telemetry roughly every ~47 Hz (375 blocks/s at 48 kHz). */
 const TELEMETRY_BLOCKS = 8;

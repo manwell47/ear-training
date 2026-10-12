@@ -10,7 +10,7 @@
   <title>Ear Training App - CSS Grid Studio VST Spectrum</title>
   <meta name="description"
     content="Plataforma profesional de entrenamiento auditivo y ecualización quirúrgica en el navegador usando Web Audio API. Sin instalación.">
-  <link rel="stylesheet" href="styles_v2.css?v=80">
+  <link rel="stylesheet" href="styles_v2.css?v=82">
 </head>
 
 <body>
@@ -174,13 +174,13 @@
 
           <aside class="dynamics-rail">
             <div class="dynamics-rail-block">
-              <div class="dynamics-rail-title">Tipo de compresor</div>
+              <div class="dynamics-rail-title" data-help="compressorTypes">Tipo de compresor</div>
               <div id="dynTypeChips" class="dyn-type-chips">
-                <button class="dyn-chip" data-dyn-style="vca" type="button">VCA</button>
-                <button class="dyn-chip" data-dyn-style="fet" type="button">FET</button>
-                <button class="dyn-chip" data-dyn-style="opto" type="button">Opto</button>
-                <button class="dyn-chip" data-dyn-style="varimu" type="button">Vari-Mu</button>
-                <button class="dyn-chip" data-dyn-style="bus" type="button">Bus</button>
+                <button class="dyn-chip" data-dyn-style="vca" data-help="typeVca" type="button">VCA</button>
+                <button class="dyn-chip" data-dyn-style="fet" data-help="typeFet" type="button">FET</button>
+                <button class="dyn-chip" data-dyn-style="opto" data-help="typeOpto" type="button">Opto</button>
+                <button class="dyn-chip" data-dyn-style="varimu" data-help="typeVarimu" type="button">Vari-Mu</button>
+                <button class="dyn-chip" data-dyn-style="bus" data-help="typeBus" type="button">Bus</button>
               </div>
             </div>
 
@@ -951,7 +951,7 @@
       originalConsoleError.apply(console, args);
     };
   </script>
-  <script type="module" src="./src/web/App.js?v=80"></script>
+  <script type="module" src="./src/web/App.js?v=82"></script>
 </body>
 
 </html>

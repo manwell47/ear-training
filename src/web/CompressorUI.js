@@ -25,7 +25,7 @@ import {
     sanitizeParams,
     computeTransferCurve,
     clamp
-} from './dynamics-math.js?v=80';
+} from './dynamics-math.js?v=82';
 
 /** UI colour per compressor type (used only when the Color switch is ON). */
 export const TYPE_COLORS = {
@@ -74,6 +74,9 @@ export class CompressorUI {
         this.colorOn = false;
         this.bypassed = false;
         this.interactive = true;
+        // Per-handle gate: progressive disclosure unlocks the threshold before the
+        // ratio, so the transfer curve must never let a locked handle be dragged.
+        this.allowedHandles = new Set(['threshold', 'ratio']);
         this.showOperatingDot = true;
 
         // Interaction state -------------------------------------------------
@@ -153,13 +156,28 @@ export class CompressorUI {
         this.bypassed = !!on;
     }
 
-    /** Enable/disable user editing (locked during Challenge/verdict). */
+    /**
+     * Enable/disable user editing (locked during Challenge/verdict).
+     * Accepts a boolean (all handles) OR a per-handle map, e.g.
+     * `{ threshold: true, ratio: false }`, so the curve honours the same
+     * progressive disclosure as the DOM knobs instead of leaking the locked one.
+     * @param {boolean|object|Array<string>} flag
+     */
     setInteractive(flag) {
-        this.interactive = !!flag;
+        if (flag && typeof flag === 'object') {
+            const list = Array.isArray(flag) ? flag : Object.keys(flag).filter((k) => flag[k]);
+            this.allowedHandles = new Set(list);
+        } else {
+            this.allowedHandles = new Set(flag ? ['threshold', 'ratio'] : []);
+        }
+        this.interactive = this.allowedHandles.size > 0;
         if (!this.interactive) {
             this.selected = null;
             this.drag = null;
+            return;
         }
+        if (this.selected && !this.allowedHandles.has(this.selected)) this.selected = null;
+        if (this.drag && !this.allowedHandles.has(this.drag.handle)) this.drag = null;
     }
 
     /** @returns {Array<{id:string,x:number,y:number,w:number,h:number,label:string}>} */
@@ -233,9 +251,10 @@ export class CompressorUI {
 
     _hitHandle(pos) {
         const h = this._handles;
+        const allow = this.allowedHandles || new Set(['threshold', 'ratio']);
         const r = 12;
-        if (h.ratio && Math.hypot(h.ratio.x - pos.x, h.ratio.y - pos.y) <= r) return 'ratio';
-        if (h.threshold && Math.hypot(h.threshold.x - pos.x, h.threshold.y - pos.y) <= r) return 'threshold';
+        if (allow.has('ratio') && h.ratio && Math.hypot(h.ratio.x - pos.x, h.ratio.y - pos.y) <= r) return 'ratio';
+        if (allow.has('threshold') && h.threshold && Math.hypot(h.threshold.x - pos.x, h.threshold.y - pos.y) <= r) return 'threshold';
         return null;
     }
 

@@ -40,19 +40,19 @@ import {
     getScenarioById,
     listScenarios,
     resolveCompressorType
-} from './DynamicsMatrix.js?v=80';
+} from './DynamicsMatrix.js?v=82';
 
 import {
     DEFAULT_DYNAMICS_PARAMS,
     sanitizeParams
-} from './dynamics-math.js?v=80';
+} from './dynamics-math.js?v=82';
 
 import {
     AUDIO_SOURCES,
     MULTITRACK_SESSIONS
-} from './AudioResourceManager.js?v=80';
+} from './AudioResourceManager.js?v=82';
 
-import { ScoringEngine } from './ScoringEngine.js?v=80';
+import { ScoringEngine } from './ScoringEngine.js?v=82';
 
 /** The four didactic sub-modes. */
 export const DYNAMICS_LAB_MODES = Object.freeze({

@@ -51,11 +51,11 @@ es **histórico**, no se cargan.
 
 | Fichero | Símbolo clave | Línea |
 |---|---|---|
-| **index.html** | `<link … styles_v2.css?v=80>` | 13 |
+| **index.html** | `<link … styles_v2.css?v=82>` | 13 |
 | | botón `#spotlightToggleBtn` (stem-mixer-header) | ~131 |
 | | `#dynamicsPanel` / `#compressorCanvas` / `#dynScopeCanvas` / `#dynamicsKnobRow` / `#dynamicsDockSection` | 141 / 157 / 171 / 255 / 371 |
 | | `#theoryPanel` / `#dynCaseVerdict` / `#dynTipsPanel` | 301 / 387 / 388 |
-| | `<script type="module" src="./src/web/App.js?v=80">` | 954 |
+| | `<script type="module" src="./src/web/App.js?v=82">` | 954 |
 | **styles_v2.css** | `@keyframes ctaTerminalPulse` + `.btn-next-trial.cta-terminal` | ~628–650 |
 | | `#spotlightToggleBtn` / `.active` | ~1486 |
 | | `@keyframes falseFriendsFadeIn` | 332 |
@@ -228,7 +228,7 @@ limpia ni la puntuación de WS-L.
 - **M6 — Pro Tips** (`DYNAMICS_MASTER_TIPS`, panel `#dynTipsPanel`): 12 consejos de mezcla (método,
   envolvente, umbral/ratio, codo, tipos, ganancia, paralelo, sidechain y errores).
 - **M7 — Integración y verificación** ([`src/web/App.js`](src/web/App.js:15)): imports y hashes
-  `?v=80`; la sección de verificación se amplía a **129 checks ALL PASS** (helpers puros del scope
+  `?v=82`; la sección de verificación se amplía a **129 checks ALL PASS** (helpers puros del scope
   + medidor PRO, geometría ADSR, casos, sidechain, `DYNAMICS_THEORY` y el checklist cualitativo de E5).
 - **M8 — Práctica Guiada sin score (E5)** ([`src/web/App.js`](src/web/App.js:1049),
   [`src/web/DynamicsLab.js`](src/web/DynamicsLab.js:344)): el sub-modo de retos puntuables pasa a
@@ -265,6 +265,42 @@ limpia ni la puntuación de WS-L.
   lugar de escalones. `reset()` reinicia `_lastGrCol`. Verificación: check **«cinta GR: alta
   resolución (interpola varios niveles por frame)»** (una tira recién avanzada contiene ≥ perFrame/2
   niveles distintos, no un único escalón).
+- **M11 — Controles *bloqueados* visibles en la divulgación progresiva** (WS-M cont.,
+ [`styles_v2.css`](styles_v2.css:240), [`src/web/App.js`](src/web/App.js:1014) y
+ [`src/web/CompressorUI.js`](src/web/CompressorUI.js:166)): **síntoma reportado** — en Práctica Guiada
+ (paso 1, `DYNAMICS_CHALLENGES[0].unlocked=['threshold']`) solo el umbral se movía y «el resto parecía
+ congelado». **Causa real**: el gating ya era correcto (`_applyDynamicsUnlockState()`), pero **no había
+ estilo `:disabled`** para `.surgical-slider`/`.surgical-select`/`.dyn-chip`, así que un control
+ desactivado lucía idéntico a uno vivo. **Arreglo**: (a) bloque «LOCKED CONTROLS» en CSS (slider atenuado
+ + desaturado, pulgar gris, selects/chips al 40 %, y `🔒` vía `::after` en la etiqueta del knob/campo/switch
+ más `.is-locked` en el contenedor); (b) `gate()` en `_applyDynamicsUnlockState()` fija `disabled`,
+ `title` («Bloqueado en este paso: se activa más adelante.»), `aria-disabled` y la clase `is-locked`;
+ (c) `_dynLockHint()`/`_dynControlLabel()` añaden al prompt del dock la lista de **controles activos**
+ («🔓 Controles activos: umbral. Los bloqueados (🔒) se abren al avanzar.») tanto en `CHALLENGE_STARTED`
+ como en `CASE_LOADED`; (d) **fuya cerrada**: `CompressorUI.setInteractive()` acepta un mapa por handle
+ (`{threshold, ratio}`) con `allowedHandles` + `_hitHandle()` filtrando, de modo que la curva de
+ transferencia ya **no** deja arrastrar el ratio bloqueado. Verificación: **129 checks ALL PASS**,
+ cache-bust unificado a **`?v=81`**.
+- **M12 — «Todo congelado» real (también en *Explorar*) + ayuda de los tipos de compresor** (WS-M cont.,
+ [`styles_v2.css`](styles_v2.css:226), [`src/web/App.js`](src/web/App.js:775),
+ [`index.html`](index.html:178) y [`src/web/DynamicsMatrix.js`](src/web/DynamicsMatrix.js:238)):
+ **síntoma** — tras M11 el usuario seguía sin poder mover ningún parámetro, **incluso en Explorar**
+ (sub-modo en el que `_applyDynamicsUnlockState()` devuelve `unlocked()===true` para todos los controles,
+ es decir, **nada** está `disabled`). **Causa real**: no era gating sino la **zona de agarre**; el
+ `input.surgical-slider` medía solo **4 px de alto** (`height:4px`), prácticamente imposible de tomar con
+ el puntero, mientras el handle grande del canvas (threshold/ratio) sí respondía — de ahí el patrón
+ «solo el umbral se mueve» y que fuera **independiente del sub-modo**. **Arreglo**: (a) la **caja del
+ `<input>` sube a 20 px** conservando el trazo fino (track de 4 px vía `::-webkit-slider-runnable-track`
+ / `::-moz-range-track`; thumb de 14 px centrado con `margin-top:-5px`, vía `::-webkit-slider-thumb` /
+ `::-moz-range-thumb`), con `cursor:pointer` y `touch-action:none`, y reglas `:disabled` equivalentes
+ para `-moz-range-thumb`/`-moz-range-track`; (b) **bindings idempotentes** en
+ `_bindDynamicsPanelControls()` mediante `bindEvt(el, type, handler)` (recuerda el handler en
+ `el['_dynOn'+type]`, lo **elimina** antes de re-añadirlo) — antes, al re-entrar al lab, se **apilaban**
+ listeners que apuntaban a un `DynamicsLab` obsoleto; (c) **ayuda de los tipos de compresor**:
+ `data-help="compressorTypes"` en la etiqueta `Tipo de compresor` y
+ `data-help="typeVca|typeFet|typeOpto|typeVarimu|typeBus"` en los 5 chips, con **6 entradas nuevas** en
+ `DYNAMICS_HELP` (20 → **21 claves**) que cubren **todos** los `data-help` de `index.html` (check §5.7
+ del verificador). Verificación: **129 checks ALL PASS**, cache-bust unificado a **`?v=82`**.
 
 ---
 
@@ -337,8 +373,8 @@ curl -s -o NUL -w "%{http_code}\n" http://localhost:8080/src/web/App.js
 Comprobar 200 en cada módulo y presencia de marcadores en el HTML/CSS.
 
 ### Regla de cache-busting
-Los `import` internos y `index.html` comparten **el mismo `?v=80`** (`App.js?v=80`,
-`styles_v2.css?v=80`). **Al publicar en Pages, sube todas las cadenas `?v=N` juntas**
+Los `import` internos y `index.html` comparten **el mismo `?v=82`** (`App.js?v=82`,
+`styles_v2.css?v=82`). **Al publicar en Pages, sube todas las cadenas `?v=N` juntas**
 (código + HTML) para evitar versiones mixtas. Busca con:
 ```cmd
 findstr /s /r /c:"?v=[0-9][0-9]*" index.html src\web\*.js
@@ -365,7 +401,7 @@ findstr /s /r /c:"?v=[0-9][0-9]*" index.html src\web\*.js
 1. ~~**Limpieza legacy**~~ ✅ hecho: `src/web/App_v4*.js` y los scratch (`tmp_verify/`,
    `replacement.txt`) ya no están en el árbol activo; los históricos viven en `legacy/`.
 2. **Regresión manual** contra [`plans/REPAIR_PLAN.md`](plans/REPAIR_PLAN.md).
-3. ~~**Publicación — alinear `?v=N`**~~ ✅ hecho: todo unificado a **`?v=80`**.
+3. ~~**Publicación — alinear `?v=N`**~~ ✅ hecho: todo unificado a **`?v=82`**.
 4. ~~**Destino de `DynamicsSpectrumRenderer.js`**~~ ✅ hecho: **retirado** (el *scope* temporal M2
    lo sustituye). El módulo vive ahora en `legacy/DynamicsSpectrumRenderer.js` y su sección de
    verificación del espectro se eliminó. Con E5 (que añade 2 checks del checklist cualitativo), los

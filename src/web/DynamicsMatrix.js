@@ -19,7 +19,7 @@
  * DSP parameters, never in subjective "sounds better" heuristics.
  */
 
-import { DSP_STYLE } from './dynamics-math.js?v=80';
+import { DSP_STYLE } from './dynamics-math.js?v=82';
 
 /** Canonical display order of the compressor families. */
 export const COMPRESSOR_TYPE_ORDER = ['vca', 'fet', 'opto', 'varimu', 'bus'];
@@ -233,6 +233,63 @@ export const DYNAMICS_HELP = {
             'Desactívalo para estudiar la curva limpia y entender su forma. Al activarlo, ' +
             'la curva adopta el color de la familia (VCA/FET/Opto/Vari-Mu/Bus) y el motor ' +
             'añade la coloración armónica característica de ese tipo.'
+    },
+    // ── Compressor families (the "Tipo de compresor" title + the 5 chips) ──
+    compressorTypes: {
+        title: 'Tipos de compresor (familias)',
+        short: 'VCA, FET, Opto, Vari-Mu y Bus: cinco formas distintas de comprimir.',
+        long:
+            'Cada familia cambia el circuito que controla la ganancia y, con él, su ' +
+            'carácter: la velocidad del ataque, la forma del codo, cuánto depende el ' +
+            'release del material y cuánto color armónico añade. Elige un chip para oír y ' +
+            'ver esa firma concreta sobre la MISMA señal; el resto de parámetros (umbral, ' +
+            'ratio, ataque…) siguen siendo tuyos.'
+    },
+    typeVca: {
+        title: 'VCA — Voltage Controlled Amplifier',
+        short: 'Rápido, limpio y predecible; el estándar de bus y mastering.',
+        long:
+            'Un chip VCA controla la ganancia con precisión casi matemática: ataque muy ' +
+            'rápido, release ajustable y color armónico mínimo, así que comprime sin que ' +
+            'se note la "firma". Es la referencia para pegar un mix entero o domar un bajo ' +
+            'de forma transparente. Modelos típicos: SSL G-Series Bus, dbx 160, API 2500.'
+    },
+    typeFet: {
+        title: 'FET — Field Effect Transistor',
+        short: 'Ataque ultrarrápido y carácter agresivo; domina los picos.',
+        long:
+            'Los transistores FET conmutan casi al instante, por lo que el ataque puede ' +
+            'ser extremadamente rápido. Añaden una coloración armónica notable cuando ' +
+            'trabajan duro, con "mordiente" y pegada. Ideales para la maza del bombo, la ' +
+            'caja o una voz que debe cortar. Modelo típico: UREI/Universal Audio 1176.'
+    },
+    typeOpto: {
+        title: 'Opto — Optoeléctrico (célula fotoeléctrica)',
+        short: 'Suave y musical; release dependiente del programa.',
+        long:
+            'Una célula fotoeléctrica reacciona con cierta inercia: ataque y release ' +
+            'naturalmente suaves y un release "program-dependent" (cuanto más comprime, ' +
+            'más tarda en soltar). El resultado es una compresión sedosa que casi nunca ' +
+            'bombea. El favorito para voces. Modelo típico: Teletronix LA-2A.'
+    },
+    typeVarimu: {
+        title: 'Vari-Mu — Compresión por válvulas',
+        short: 'Cálida y con "glue"; une la mezcla sin esfuerzo.',
+        long:
+            'La propia válvula cambia su ganancia al recibir más señal, con un codo muy ' +
+            'suave y un ratio que crece de forma progresiva. Aportan calor, redondez y una ' +
+            'sensación de cohesión ("glue") con reducciones pequeñas y constantes. Modelos ' +
+            'típicos: Fairchild 670, Manley Vari-Mu, Chandler RS124.'
+    },
+    typeBus: {
+        title: 'Bus — Bus Compressor (diseño para "glue")',
+        short: 'Ratio bajo y fijo, detector RMS y release lento; para el mix completo.',
+        long:
+            'Diseñado para trabajar sobre una suma de señales con un ratio bajo ' +
+            '(habitualmente 2:1), detector RMS y release lento. No pretende domar ' +
+            'transitorios aislados, sino unir los elementos en una sola imagen: la clásica ' +
+            'técnica de "pegar" el mix, con 2-4 dB de reducción. Modelos típicos: SSL Bus ' +
+            'Compressor, API 2500 (modo Bus).'
     },
     upwardEnabled: {
         title: 'Compresión al alza (Upward)',
